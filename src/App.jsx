@@ -5,13 +5,14 @@ import {
   isAuthorized,
   uploadPost,
   fetchPosts,
+  updatePost,
 } from './drive.js';
 
 const USERS = [
-  { id: 'rep1', name: 'Wanger Cheung', username: 'wanger',    password: 'wc21102121',  color: '#FF6B35', initials: 'WC' },
-  { id: 'rep2', name: 'Hazel Chan',    username: 'hazel',     password: 'hc21102121',  color: '#00B4D8', initials: 'HC' },
-  { id: 'rep3', name: 'Victor Choi',   username: 'victor',    password: 'vc21102121',  color: '#06D6A0', initials: 'VC' },
-  { id: 'rep4', name: 'Marketing',     username: 'marketing', password: 'HK21102121',  color: '#FFB703', initials: 'MK' },
+  { id: 'rep1', name: 'Wanger Cheung', username: 'wanger',    password: 'wc21102121', color: '#FF6B35', initials: 'WC' },
+  { id: 'rep2', name: 'Hazel Chan',    username: 'hazel',     password: 'hc21102121', color: '#00B4D8', initials: 'HC' },
+  { id: 'rep3', name: 'Victor Choi',   username: 'victor',    password: 'vc21102121', color: '#06D6A0', initials: 'VC' },
+  { id: 'rep4', name: 'Marketing',     username: 'marketing', password: 'HK21102121', color: '#FFB703', initials: 'MK' },
 ];
 
 function toLocalDateTimeString(date) {
@@ -141,13 +142,19 @@ function GoogleAuthPrompt({ onAuthorize, loading }) {
   );
 }
 
-function UploadModal({ user, onClose, onSubmit }) {
-  const [district, setDistrict] = useState('');
-  const [note, setNote] = useState('');
-  const [images, setImages] = useState([]);
+function PostModal({ user, onClose, onSubmit, existingPost }) {
+  const isEditing = !!existingPost;
+
+  const [district, setDistrict] = useState(isEditing ? existingPost.district : '');
+  const [note, setNote] = useState(isEditing ? (existingPost.note || '') : '');
+  const [images, setImages] = useState(isEditing ? (existingPost.images || (existingPost.imgData ? [{ id: 'orig', dataUrl: existingPost.imgData }] : [])) : []);
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [dateTime, setDateTime] = useState(toLocalDateTimeString(new Date()));
+  const [dateTime, setDateTime] = useState(
+    isEditing
+      ? toLocalDateTimeString(new Date(existingPost.displayTime || existingPost.timestamp))
+      : toLocalDateTimeString(new Date())
+  );
   const [progress, setProgress] = useState('');
 
   function readFiles(files) {
@@ -174,11 +181,11 @@ function UploadModal({ user, onClose, onSubmit }) {
   async function handleSubmit() {
     if (!images.length || !district) return;
     setSubmitting(true);
-    setProgress('Uploading to Google Drive...');
+    setProgress(isEditing ? 'Saving changes...' : 'Uploading to Google Drive...');
     try {
       await onSubmit({ images, district, note: note.trim(), dateTime });
     } catch (e) {
-      setProgress('Upload failed. Please try again.');
+      setProgress('Failed. Please try again.');
       setSubmitting(false);
     }
   }
@@ -198,12 +205,15 @@ function UploadModal({ user, onClose, onSubmit }) {
         animation: 'slideUp 0.3s ease', maxHeight: '92vh', overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <span style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>New Post</span>
+          <span style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>
+            {isEditing ? 'Edit Post' : 'New Post'}
+          </span>
           <button onClick={onClose} disabled={submitting} style={{
             background: '#2a2a38', border: 'none', color: '#888',
             borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13,
           }}>Cancel</button>
         </div>
+
         <div
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -250,11 +260,13 @@ function UploadModal({ user, onClose, onSubmit }) {
         </div>
         <input id="fileInput" type="file" accept="image/*" multiple style={{ display: 'none' }}
           onChange={e => readFiles(e.target.files)} />
+
         {images.length > 0 && !submitting && (
           <p style={{ color: '#555', fontSize: 12, marginBottom: 16 }}>
-            {images.length} photo{images.length > 1 ? 's' : ''} selected - tap X to remove - tap above to add more
+            {images.length} photo{images.length > 1 ? 's' : ''} - tap X to remove - tap above to add more
           </p>
         )}
+
         <label style={labelStyle}>Date &amp; Time</label>
         <input type="datetime-local" value={dateTime}
           onChange={e => setDateTime(e.target.value)}
@@ -262,15 +274,18 @@ function UploadModal({ user, onClose, onSubmit }) {
         <p style={{ color: '#444', fontSize: 11, marginTop: 5, marginBottom: 16 }}>
           Auto-filled with now. Adjust if the photos were taken at a different time.
         </p>
+
         <label style={labelStyle}>Location</label>
         <input style={inputStyle} placeholder="e.g. Mong Kok, Tsim Sha Tsui, Tuen Mun"
           value={district} onChange={e => setDistrict(e.target.value)} disabled={submitting} />
+
         <label style={{ ...labelStyle, marginTop: 16 }}>
           Note <span style={{ color: '#555', fontWeight: 400, textTransform: 'none', fontSize: 11 }}>(optional)</span>
         </label>
         <textarea value={note} onChange={e => setNote(e.target.value)}
           placeholder="What's happening here?" rows={3} disabled={submitting}
           style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }} />
+
         {progress && (
           <div style={{
             marginTop: 14, padding: '10px 14px', borderRadius: 10,
@@ -278,25 +293,30 @@ function UploadModal({ user, onClose, onSubmit }) {
             color: '#FFB703', fontSize: 13, textAlign: 'center',
           }}>{progress}</div>
         )}
+
         <button onClick={handleSubmit} disabled={!ready || submitting} style={{
           ...primaryBtn,
           background: ready && !submitting ? `linear-gradient(135deg, ${user.color}, ${user.color}cc)` : '#2a2a38',
           color: ready && !submitting ? '#fff' : '#555', marginTop: 16,
         }}>
-          {submitting ? 'Uploading...' : `Share ${images.length > 1 ? images.length + ' Photos' : 'Photo'} with Team`}
+          {submitting
+            ? (isEditing ? 'Saving...' : 'Uploading...')
+            : (isEditing ? 'Save Changes' : `Share ${images.length > 1 ? images.length + ' Photos' : 'Photo'} with Team`)
+          }
         </button>
       </div>
     </div>
   );
 }
 
-function PhotoCard({ photo }) {
+function PhotoCard({ photo, currentUserId, onEdit }) {
   const uploader = USERS.find(u => u.id === photo.userId);
   if (!uploader) return null;
   const date = new Date(photo.displayTime || photo.timestamp);
   const dateStr = date.toLocaleDateString('en-HK', { day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit' });
   const imgs = photo.images || (photo.imgData ? [{ dataUrl: photo.imgData }] : []);
+  const canEdit = photo.userId === currentUserId;
 
   return (
     <div style={{
@@ -338,7 +358,16 @@ function PhotoCard({ photo }) {
             <div style={{ color: '#fff', fontWeight: 600, fontSize: 13 }}>{uploader.name}</div>
             <div style={{ color: '#555', fontSize: 11 }}>{dateStr} - {timeStr}</div>
           </div>
-          {imgs.length > 1 && <div style={{ color: '#555', fontSize: 12 }}>{imgs.length} photos</div>}
+          {imgs.length > 1 && (
+            <div style={{ color: '#555', fontSize: 12, marginRight: 6 }}>{imgs.length} photos</div>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(photo)} style={{
+              background: '#2a2a38', border: 'none', color: '#888',
+              borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12,
+              fontFamily: "'DM Sans', sans-serif",
+            }}>Edit</button>
+          )}
         </div>
       </div>
     </div>
@@ -346,9 +375,15 @@ function PhotoCard({ photo }) {
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fieldsnap_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [photos, setPhotos] = useState([]);
   const [showUpload, setShowUpload] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
   const [filter, setFilter] = useState('all');
   const [driveReady, setDriveReady] = useState(false);
   const [driveAuthed, setDriveAuthed] = useState(false);
@@ -392,15 +427,20 @@ export default function App() {
     }
   }
 
-  function handleLogin(user) { setCurrentUser(user); }
+  function handleLogin(user) {
+    setCurrentUser(user);
+    localStorage.setItem('fieldsnap_user', JSON.stringify(user));
+  }
 
   function handleLogout() {
+    localStorage.removeItem('fieldsnap_user');
     setCurrentUser(null);
     setShowUpload(false);
+    setEditingPost(null);
     setFilter('all');
   }
 
-  async function handleSubmit({ images, district, note, dateTime }) {
+  async function handleNewPost({ images, district, note, dateTime }) {
     const displayTime = dateTime ? new Date(dateTime).getTime() : Date.now();
     const post = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -410,11 +450,29 @@ export default function App() {
       displayTime,
     };
     await uploadPost(post);
-    setPhotos(prev => [post, ...prev]);
+    setPhotos(prev => sortPosts([post, ...prev]));
     setShowUpload(false);
   }
 
-  const displayed = filter === 'all' ? photos : photos.filter(p => p.userId === filter);
+  async function handleEditPost({ images, district, note, dateTime }) {
+    const displayTime = dateTime ? new Date(dateTime).getTime() : editingPost.displayTime;
+    const updated = {
+      ...editingPost,
+      images, district, note,
+      displayTime,
+    };
+    await updatePost(updated);
+    setPhotos(prev => sortPosts(prev.map(p => p.id === updated.id ? updated : p)));
+    setEditingPost(null);
+  }
+
+  function sortPosts(posts) {
+    return [...posts].sort((a, b) => (b.displayTime || b.timestamp) - (a.displayTime || a.timestamp));
+  }
+
+  const displayed = filter === 'all'
+    ? photos
+    : photos.filter(p => p.userId === filter);
 
   if (!currentUser) return (
     <>
@@ -446,8 +504,9 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={loadFeed} disabled={feedLoading} style={{
             background: '#2a2a38', border: 'none', borderRadius: 8,
-            padding: '6px 10px', cursor: 'pointer', fontSize: 14, color: '#888',
-          }} title="Refresh feed">{feedLoading ? '...' : 'Refresh'}</button>
+            padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#888',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>{feedLoading ? '...' : 'Refresh'}</button>
           <Avatar user={currentUser} size={34} />
           <div>
             <div style={{ color: '#fff', fontWeight: 600, fontSize: 13, lineHeight: 1 }}>{currentUser.name}</div>
@@ -485,7 +544,6 @@ export default function App() {
       <div style={{ padding: '12px 20px', display: 'grid', gap: 16 }}>
         {feedLoading && photos.length === 0
           ? <div style={{ textAlign: 'center', color: '#444', paddingTop: 60 }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>...</div>
               <div style={{ fontSize: 14 }}>Loading feed from Google Drive...</div>
             </div>
           : displayed.length === 0
@@ -493,7 +551,14 @@ export default function App() {
                 <div style={{ fontSize: 48, marginBottom: 12 }}>&#x1F4EB;</div>
                 {filter === 'all' ? 'No photos yet. Be the first to share!' : 'No posts from this rep yet.'}
               </div>
-            : displayed.map(p => <PhotoCard key={p.id} photo={p} />)
+            : displayed.map(p => (
+                <PhotoCard
+                  key={p.id}
+                  photo={p}
+                  currentUserId={currentUser.id}
+                  onEdit={setEditingPost}
+                />
+              ))
         }
       </div>
 
@@ -508,7 +573,20 @@ export default function App() {
       }}>+</button>
 
       {showUpload && (
-        <UploadModal user={currentUser} onClose={() => setShowUpload(false)} onSubmit={handleSubmit} />
+        <PostModal
+          user={currentUser}
+          onClose={() => setShowUpload(false)}
+          onSubmit={handleNewPost}
+        />
+      )}
+
+      {editingPost && (
+        <PostModal
+          user={currentUser}
+          onClose={() => setEditingPost(null)}
+          onSubmit={handleEditPost}
+          existingPost={editingPost}
+        />
       )}
 
       <GlobalStyles />
