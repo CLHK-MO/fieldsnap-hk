@@ -1,7 +1,6 @@
-// ── Google Drive API helpers ──────────────────────────────────────────────────
+// Google Drive API helpers
 // All photos are stored as JSON files in a shared app folder on Drive.
 // Each post = one JSON file containing metadata + base64 image data.
-// The folder is shared so all reps see each other's posts.
 
 const FOLDER_NAME = 'FieldSnap HK';
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
@@ -12,7 +11,6 @@ let gisInited = false;
 let tokenClient = null;
 let folderId = null;
 
-// Load gapi + gis scripts dynamically
 function loadScript(src) {
   return new Promise((resolve) => {
     if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
@@ -70,7 +68,6 @@ export function signOutGoogle() {
   folderId = null;
 }
 
-// Get or create the shared FieldSnap HK folder
 async function getOrCreateFolder() {
   if (folderId) return folderId;
 
@@ -84,7 +81,6 @@ async function getOrCreateFolder() {
     return folderId;
   }
 
-  // Create folder
   const folder = await window.gapi.client.drive.files.create({
     resource: {
       name: FOLDER_NAME,
@@ -94,7 +90,6 @@ async function getOrCreateFolder() {
   });
   folderId = folder.result.id;
 
-  // Make it readable by anyone with the link (so all reps can read each other's posts)
   await window.gapi.client.drive.permissions.create({
     fileId: folderId,
     resource: { role: 'reader', type: 'anyone' },
@@ -103,7 +98,6 @@ async function getOrCreateFolder() {
   return folderId;
 }
 
-// Upload a new post as a JSON file in the folder
 export async function uploadPost(post) {
   const folder = await getOrCreateFolder();
 
@@ -114,9 +108,7 @@ export async function uploadPost(post) {
   };
 
   const body = JSON.stringify(post);
-
-  // Use multipart upload
-  const boundary = '-------fieldsnap_boundary';
+  const boundary = 'fieldsnap_boundary_xyz';
   const delimiter = `\r\n--${boundary}\r\n`;
   const closeDelim = `\r\n--${boundary}--`;
 
@@ -146,7 +138,6 @@ export async function uploadPost(post) {
   return response.json();
 }
 
-// Fetch all posts from the folder, sorted newest first
 export async function fetchPosts() {
   const folder = await getOrCreateFolder();
 
@@ -168,7 +159,7 @@ export async function fetchPosts() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         return await r.json();
-      } catch {
+      } catch (e) {
         return null;
       }
     })
@@ -177,7 +168,6 @@ export async function fetchPosts() {
   return posts.filter(Boolean).sort((a, b) => b.timestamp - a.timestamp);
 }
 
-// Delete a post file
 export async function deletePost(postId) {
   const folder = await getOrCreateFolder();
   const res = await window.gapi.client.drive.files.list({
