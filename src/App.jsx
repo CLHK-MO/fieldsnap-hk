@@ -5,7 +5,6 @@ import {
   isAuthorized,
   uploadPost,
   fetchPosts,
-  updatePost,
 } from './drive.js';
 
 const USERS = [
