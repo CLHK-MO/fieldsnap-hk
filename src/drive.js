@@ -1,0 +1,190 @@
+// ── Google Drive API helpers ──────────────────────────────────────────────────
+// All photos are stored as JSON files in a shared app folder on Drive.
+// Each post = one JSON file containing metadata + base64 image data.
+// The folder is shared so all reps see each other's posts.
+
+const FOLDER_NAME = 'FieldSnap HK';
+const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+let gapiInited = false;
+let gisInited = false;
+let tokenClient = null;
+let folderId = null;
+
+// Load gapi + gis scripts dynamically
+function loadScript(src) {
+  return new Promise((resolve) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    document.head.appendChild(s);
+  });
+}
+
+export async function initGoogleDrive() {
+  await loadScript('https://apis.google.com/js/api.js');
+  await loadScript('https://accounts.google.com/gsi/client');
+
+  await new Promise((resolve) => window.gapi.load('client', resolve));
+  await window.gapi.client.init({
+    apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
+    discoveryDocs: [DISCOVERY_DOC],
+  });
+  gapiInited = true;
+
+  tokenClient = window.google.accounts.oauth2.initTokenClient({
+    client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+    scope: SCOPES,
+    callback: () => {},
+  });
+  gisInited = true;
+}
+
+export function authorizeGoogleDrive() {
+  return new Promise((resolve, reject) => {
+    if (!gapiInited || !gisInited) { reject(new Error('Google APIs not loaded')); return; }
+    tokenClient.callback = (resp) => {
+      if (resp.error) reject(resp);
+      else resolve(resp);
+    };
+    if (window.gapi.client.getToken() === null) {
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+      tokenClient.requestAccessToken({ prompt: '' });
+    }
+  });
+}
+
+export function isAuthorized() {
+  return window.gapi?.client?.getToken() !== null;
+}
+
+export function signOutGoogle() {
+  const token = window.gapi.client.getToken();
+  if (token) {
+    window.google.accounts.oauth2.revoke(token.access_token);
+    window.gapi.client.setToken('');
+  }
+  folderId = null;
+}
+
+// Get or create the shared FieldSnap HK folder
+async function getOrCreateFolder() {
+  if (folderId) return folderId;
+
+  const res = await window.gapi.client.drive.files.list({
+    q: `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields: 'files(id)',
+  });
+
+  if (res.result.files.length > 0) {
+    folderId = res.result.files[0].id;
+    return folderId;
+  }
+
+  // Create folder
+  const folder = await window.gapi.client.drive.files.create({
+    resource: {
+      name: FOLDER_NAME,
+      mimeType: 'application/vnd.google-apps.folder',
+    },
+    fields: 'id',
+  });
+  folderId = folder.result.id;
+
+  // Make it readable by anyone with the link (so all reps can read each other's posts)
+  await window.gapi.client.drive.permissions.create({
+    fileId: folderId,
+    resource: { role: 'reader', type: 'anyone' },
+  });
+
+  return folderId;
+}
+
+// Upload a new post as a JSON file in the folder
+export async function uploadPost(post) {
+  const folder = await getOrCreateFolder();
+
+  const metadata = {
+    name: `post_${post.id}.json`,
+    mimeType: 'application/json',
+    parents: [folder],
+  };
+
+  const body = JSON.stringify(post);
+
+  // Use multipart upload
+  const boundary = '-------fieldsnap_boundary';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelim = `\r\n--${boundary}--`;
+
+  const multipartBody =
+    delimiter +
+    'Content-Type: application/json\r\n\r\n' +
+    JSON.stringify(metadata) +
+    delimiter +
+    'Content-Type: application/json\r\n\r\n' +
+    body +
+    closeDelim;
+
+  const token = window.gapi.client.getToken().access_token;
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,createdTime',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`,
+      },
+      body: multipartBody,
+    }
+  );
+
+  if (!response.ok) throw new Error('Upload failed');
+  return response.json();
+}
+
+// Fetch all posts from the folder, sorted newest first
+export async function fetchPosts() {
+  const folder = await getOrCreateFolder();
+
+  const res = await window.gapi.client.drive.files.list({
+    q: `'${folder}' in parents and name contains 'post_' and trashed=false`,
+    fields: 'files(id,name,createdTime)',
+    orderBy: 'createdTime desc',
+    pageSize: 100,
+  });
+
+  const files = res.result.files || [];
+  const token = window.gapi.client.getToken().access_token;
+
+  const posts = await Promise.all(
+    files.map(async (file) => {
+      try {
+        const r = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        return await r.json();
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return posts.filter(Boolean).sort((a, b) => b.timestamp - a.timestamp);
+}
+
+// Delete a post file
+export async function deletePost(postId) {
+  const folder = await getOrCreateFolder();
+  const res = await window.gapi.client.drive.files.list({
+    q: `name='post_${postId}.json' and '${folder}' in parents and trashed=false`,
+    fields: 'files(id)',
+  });
+  if (res.result.files.length > 0) {
+    await window.gapi.client.drive.files.delete({ fileId: res.result.files[0].id });
+  }
+}
