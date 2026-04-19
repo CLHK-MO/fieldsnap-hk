@@ -208,3 +208,30 @@ export async function updatePost(post) {
     return uploadPost(post);
   }
 }
+
+export async function updatePost(post) {
+  const folder = await getOrCreateFolder();
+  const res = await window.gapi.client.drive.files.list({
+    q: `name='post_${post.id}.json' and '${folder}' in parents and trashed=false`,
+    fields: 'files(id)',
+  });
+  const token = window.gapi.client.getToken().access_token;
+  if (res.result.files.length > 0) {
+    const fileId = res.result.files[0].id;
+    const response = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(post),
+      }
+    );
+    if (!response.ok) throw new Error('Update failed');
+    return response.json();
+  } else {
+    return uploadPost(post);
+  }
+}
