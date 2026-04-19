@@ -21,7 +21,6 @@ function toLocalDateTimeString(date) {
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-// ── SHARED STYLES ─────────────────────────────────────────────────────────────
 const labelStyle = {
   display: 'block', color: '#888', fontSize: 12,
   fontWeight: 600, marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase',
@@ -38,7 +37,6 @@ const primaryBtn = {
   fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.3,
 };
 
-// ── AVATAR ────────────────────────────────────────────────────────────────────
 function Avatar({ user, size = 36 }) {
   return (
     <div style={{
@@ -50,7 +48,6 @@ function Avatar({ user, size = 36 }) {
   );
 }
 
-// ── LOGIN ─────────────────────────────────────────────────────────────────────
 function LoginScreen({ onLogin, driveReady }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -84,7 +81,6 @@ function LoginScreen({ onLogin, driveReady }) {
           }}>📍 FieldSnap HK</div>
           <div style={{ color: '#555', fontSize: 14, marginTop: 6 }}>Sales District Photo Board</div>
         </div>
-
         <div style={{
           background: '#1a1a24', borderRadius: 20, padding: '32px 28px',
           border: '1px solid #2a2a38', boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
@@ -93,25 +89,19 @@ function LoginScreen({ onLogin, driveReady }) {
             <div style={{
               background: '#1e1a12', border: '1px solid #3a3010', borderRadius: 10,
               padding: '10px 14px', marginBottom: 20, color: '#FFB703', fontSize: 13,
-            }}>
-              ⏳ Connecting to Google Drive…
-            </div>
+            }}>⏳ Connecting to Google Drive…</div>
           )}
-
           <label style={labelStyle}>Username</label>
           <input style={inputStyle} placeholder="e.g. wanger" value={username}
             onChange={e => { setUsername(e.target.value); setError(''); }}
             onKeyDown={e => e.key === 'Enter' && handleLogin()} autoCapitalize="none" />
-
           <label style={{ ...labelStyle, marginTop: 16 }}>Password</label>
           <input style={inputStyle} type="password" placeholder="••••••" value={password}
             onChange={e => { setPassword(e.target.value); setError(''); }}
             onKeyDown={e => e.key === 'Enter' && handleLogin()} />
-
           {error && <p style={{ color: '#FF6B35', fontSize: 13, marginTop: 10 }}>{error}</p>}
           <button onClick={handleLogin} style={{ ...primaryBtn, marginTop: 24 }}>Sign In →</button>
         </div>
-
         <p style={{ color: '#333', fontSize: 12, textAlign: 'center', marginTop: 20 }}>
           Contact your manager if you need access.
         </p>
@@ -120,7 +110,6 @@ function LoginScreen({ onLogin, driveReady }) {
   );
 }
 
-// ── GOOGLE AUTH PROMPT ────────────────────────────────────────────────────────
 function GoogleAuthPrompt({ onAuthorize, loading }) {
   return (
     <div style={{
@@ -139,8 +128,7 @@ function GoogleAuthPrompt({ onAuthorize, loading }) {
           FieldSnap stores all photos in a shared Google Drive folder so your whole team sees the same feed in real time.
         </p>
         <button onClick={onAuthorize} disabled={loading} style={{
-          ...primaryBtn, width: 'auto', padding: '14px 32px',
-          opacity: loading ? 0.6 : 1,
+          ...primaryBtn, width: 'auto', padding: '14px 32px', opacity: loading ? 0.6 : 1,
         }}>
           {loading ? 'Connecting…' : 'Connect Google Drive'}
         </button>
@@ -152,7 +140,6 @@ function GoogleAuthPrompt({ onAuthorize, loading }) {
   );
 }
 
-// ── UPLOAD MODAL ──────────────────────────────────────────────────────────────
 function UploadModal({ user, onClose, onSubmit }) {
   const [district,   setDistrict]   = useState('');
   const [note,       setNote]       = useState('');
@@ -183,7 +170,7 @@ function UploadModal({ user, onClose, onSubmit }) {
   }
 
   async function handleSubmit() {
-    if (!images.length || !district || !note.trim()) return;
+    if (!images.length || !district) return;
     setSubmitting(true);
     setProgress('Uploading to Google Drive…');
     try {
@@ -194,7 +181,7 @@ function UploadModal({ user, onClose, onSubmit }) {
     }
   }
 
-  const ready = images.length > 0 && district && note.trim();
+  const ready = images.length > 0 && district;
 
   return (
     <div style={{
@@ -215,8 +202,6 @@ function UploadModal({ user, onClose, onSubmit }) {
             borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13,
           }}>Cancel</button>
         </div>
-
-        {/* Drop zone */}
         <div
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -263,14 +248,11 @@ function UploadModal({ user, onClose, onSubmit }) {
         </div>
         <input id="fileInput" type="file" accept="image/*" multiple style={{ display: 'none' }}
           onChange={e => readFiles(e.target.files)} />
-
         {images.length > 0 && !submitting && (
           <p style={{ color: '#555', fontSize: 12, marginBottom: 16 }}>
             {images.length} photo{images.length > 1 ? 's' : ''} selected · tap ✕ to remove · tap above to add more
           </p>
         )}
-
-        {/* Date & Time */}
         <label style={labelStyle}>Date & Time</label>
         <input type="datetime-local" value={dateTime}
           onChange={e => setDateTime(e.target.value)}
@@ -278,18 +260,13 @@ function UploadModal({ user, onClose, onSubmit }) {
         <p style={{ color: '#444', fontSize: 11, marginTop: 5, marginBottom: 16 }}>
           Auto-filled with now. Adjust if the photos were taken at a different time.
         </p>
-
-        {/* Location */}
         <label style={labelStyle}>Location</label>
         <input style={inputStyle} placeholder="e.g. Mong Kok, Tsim Sha Tsui, Tuen Mun…"
           value={district} onChange={e => setDistrict(e.target.value)} disabled={submitting} />
-
-        {/* Note */}
-        <label style={{ ...labelStyle, marginTop: 16 }}>Note</label>
+        <label style={{ ...labelStyle, marginTop: 16 }}>Note <span style={{ color: '#555', fontWeight: 400, textTransform: 'none', fontSize: 11 }}>(optional)</span></label>
         <textarea value={note} onChange={e => setNote(e.target.value)}
           placeholder="What's happening here?" rows={3} disabled={submitting}
           style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }} />
-
         {progress && (
           <div style={{
             marginTop: 14, padding: '10px 14px', borderRadius: 10,
@@ -297,7 +274,6 @@ function UploadModal({ user, onClose, onSubmit }) {
             color: '#FFB703', fontSize: 13, textAlign: 'center',
           }}>{progress}</div>
         )}
-
         <button onClick={handleSubmit} disabled={!ready || submitting} style={{
           ...primaryBtn,
           background: ready && !submitting ? `linear-gradient(135deg, ${user.color}, ${user.color}cc)` : '#2a2a38',
@@ -310,11 +286,9 @@ function UploadModal({ user, onClose, onSubmit }) {
   );
 }
 
-// ── PHOTO CARD ────────────────────────────────────────────────────────────────
 function PhotoCard({ photo }) {
   const uploader = USERS.find(u => u.id === photo.userId);
   if (!uploader) return null;
-
   const date = new Date(photo.displayTime || photo.timestamp);
   const dateStr = date.toLocaleDateString('en-HK', { day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit' });
@@ -343,16 +317,13 @@ function PhotoCard({ photo }) {
             ))}
           </div>
       }
-
       <div style={{ padding: '16px 18px' }}>
         <div style={{
           display: 'inline-block', background: `${uploader.color}22`,
           color: uploader.color, borderRadius: 8, padding: '3px 10px',
           fontSize: 12, fontWeight: 600, marginBottom: 10,
         }}>📍 {photo.district}</div>
-
-        <p style={{ color: '#ddd', fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>{photo.note}</p>
-
+        {photo.note && <p style={{ color: '#ddd', fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>{photo.note}</p>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #2a2a38', paddingTop: 12 }}>
           <Avatar user={uploader} size={32} />
           <div style={{ flex: 1 }}>
@@ -366,7 +337,6 @@ function PhotoCard({ photo }) {
   );
 }
 
-// ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [currentUser,  setCurrentUser]  = useState(null);
   const [photos,       setPhotos]       = useState([]);
@@ -378,7 +348,6 @@ export default function App() {
   const [feedLoading,  setFeedLoading]  = useState(false);
   const [error,        setError]        = useState('');
 
-  // Init Google Drive on mount
   useEffect(() => {
     initGoogleDrive()
       .then(() => {
@@ -388,174 +357,8 @@ export default function App() {
       .catch(() => setError('Failed to load Google Drive. Check your API keys.'));
   }, []);
 
-  // Load feed when authed + logged in
   const loadFeed = useCallback(async () => {
     if (!driveAuthed || !currentUser) return;
     setFeedLoading(true);
     try {
-      const posts = await fetchPosts();
-      setPhotos(posts);
-    } catch {
-      setError('Could not load posts. Try refreshing.');
-    } finally {
-      setFeedLoading(false);
-    }
-  }, [driveAuthed, currentUser]);
-
-  useEffect(() => { loadFeed(); }, [loadFeed]);
-
-  async function handleAuthorize() {
-    setAuthLoading(true);
-    try {
-      await authorizeGoogleDrive();
-      setDriveAuthed(true);
-    } catch {
-      setError('Google Drive authorization failed.');
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  function handleLogin(user) { setCurrentUser(user); }
-
-  function handleLogout() {
-    setCurrentUser(null);
-    setShowUpload(false);
-    setFilter('all');
-  }
-
-  async function handleSubmit({ images, district, note, dateTime }) {
-    const displayTime = dateTime ? new Date(dateTime).getTime() : Date.now();
-    const post = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      userId: currentUser.id,
-      images, district, note,
-      timestamp: Date.now(),
-      displayTime,
-    };
-    await uploadPost(post);
-    setPhotos(prev => [post, ...prev]);
-    setShowUpload(false);
-  }
-
-  const displayed = filter === 'all' ? photos : photos.filter(p => p.userId === filter);
-
-  // ── Screens ────────────────────────────────────────────────────────────────
-  if (!currentUser) return (
-    <>
-      <LoginScreen onLogin={handleLogin} driveReady={driveReady} />
-      <GlobalStyles />
-    </>
-  );
-
-  if (!driveAuthed) return (
-    <>
-      <GoogleAuthPrompt onAuthorize={handleAuthorize} loading={authLoading} />
-      <GlobalStyles />
-    </>
-  );
-
-  return (
-    <div style={{ minHeight: '100vh', background: '#0f0f14', fontFamily: "'DM Sans', sans-serif", paddingBottom: 80 }}>
-      {/* Header */}
-      <div style={{
-        background: '#1a1a24', borderBottom: '1px solid #2a2a38',
-        padding: '14px 20px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        position: 'sticky', top: 0, zIndex: 50,
-      }}>
-        <div style={{
-          background: 'linear-gradient(135deg,#FF6B35,#FFB703)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          fontWeight: 800, fontSize: 18, letterSpacing: -0.5,
-        }}>📍 FieldSnap HK</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={loadFeed} disabled={feedLoading} style={{
-            background: '#2a2a38', border: 'none', borderRadius: 8,
-            padding: '6px 10px', cursor: 'pointer', fontSize: 14, color: '#888',
-          }} title="Refresh feed">{feedLoading ? '⏳' : '🔄'}</button>
-          <Avatar user={currentUser} size={34} />
-          <div>
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: 13, lineHeight: 1 }}>{currentUser.name}</div>
-            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#555', fontSize: 11, cursor: 'pointer', padding: 0, marginTop: 2 }}>Sign out</button>
-          </div>
-        </div>
-      </div>
-
-      {error && (
-        <div style={{
-          margin: '12px 20px 0', padding: '10px 14px', borderRadius: 10,
-          background: '#1e1216', border: '1px solid #3a1020', color: '#FF6B35', fontSize: 13,
-        }}>⚠️ {error} <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#FF6B35', cursor: 'pointer', float: 'right' }}>✕</button></div>
-      )}
-
-      {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: 8, padding: '16px 20px 8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-        {[{ id: 'all', label: 'All Team' }, ...USERS.map(u => ({ id: u.id, label: u.name.split(' ')[0] }))].map(tab => {
-          const u = USERS.find(u => u.id === tab.id);
-          const active = filter === tab.id;
-          return (
-            <button key={tab.id} onClick={() => setFilter(tab.id)} style={{
-              flexShrink: 0, padding: '7px 14px', borderRadius: 100,
-              border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              background: active ? (u ? u.color : '#fff') : '#1a1a24',
-              color: active ? (u ? '#fff' : '#0f0f14') : '#666',
-              transition: 'all 0.2s', fontFamily: "'DM Sans', sans-serif",
-            }}>{tab.label}</button>
-          );
-        })}
-      </div>
-
-      {/* Feed */}
-      <div style={{ padding: '12px 20px', display: 'grid', gap: 16 }}>
-        {feedLoading && photos.length === 0
-          ? <div style={{ textAlign: 'center', color: '#444', paddingTop: 60 }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-              <div style={{ fontSize: 14 }}>Loading feed from Google Drive…</div>
-            </div>
-          : displayed.length === 0
-            ? <div style={{ textAlign: 'center', color: '#333', paddingTop: 60, fontSize: 14, lineHeight: 2 }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-                {filter === 'all' ? 'No photos yet. Be the first to share!' : 'No posts from this rep yet.'}
-              </div>
-            : displayed.map(p => <PhotoCard key={p.id} photo={p} />)
-        }
-      </div>
-
-      {/* FAB */}
-      <button onClick={() => setShowUpload(true)} style={{
-        position: 'fixed', bottom: 28, right: 24,
-        width: 58, height: 58, borderRadius: '50%', border: 'none',
-        background: `linear-gradient(135deg, ${currentUser.color}, ${currentUser.color}bb)`,
-        color: '#fff', fontSize: 26, cursor: 'pointer',
-        boxShadow: `0 8px 24px ${currentUser.color}66`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 50,
-      }}>＋</button>
-
-      {showUpload && (
-        <UploadModal user={currentUser} onClose={() => setShowUpload(false)} onSubmit={handleSubmit} />
-      )}
-
-      <GlobalStyles />
-    </div>
-  );
-}
-
-function GlobalStyles() {
-  return (
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-      @keyframes fadeUp   { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:none } }
-      @keyframes shake    { 0%,100%{transform:none} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
-      @keyframes slideUp  { from { transform:translateY(100%) } to { transform:none } }
-      @keyframes fadeIn   { from { opacity:0 } to { opacity:1 } }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: #0f0f14; }
-      ::-webkit-scrollbar { display: none; }
-      input::placeholder, textarea::placeholder { color: #444; }
-      textarea { font-family: 'DM Sans', sans-serif; }
-      input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.4); cursor: pointer; }
-    `}</style>
-  );
-}
+      const
