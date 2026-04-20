@@ -144,7 +144,8 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
     try {
       await onSubmit({ images, district, note: note.trim(), dateTime })
     } catch (e) {
-      setProgress('Failed. Please try again.')
+      console.error('Submit error:', e)
+      setProgress('Failed: ' + (e.message || 'Unknown error'))
       setSubmitting(false)
     }
   }
