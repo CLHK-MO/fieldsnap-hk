@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import supabase, { createPost, updatePost, fetchPosts, uploadImages, deleteImages } from './supabase.js'
+import supabase, { createPost, updatePost, fetchPosts, uploadImages, toggleLike } from './supabase.js'
 
 const USERS = [
   { id: 'rep1', name: 'Wanger Cheung', username: 'wanger',    password: 'wc21102121', color: '#FF6B35', initials: 'WC' },
@@ -99,7 +99,6 @@ function LoginScreen({ onLogin }) {
 
 function PostModal({ user, onClose, onSubmit, existingPost }) {
   const isEditing = !!existingPost
-
   const [district, setDistrict] = useState(isEditing ? existingPost.district : '')
   const [note, setNote] = useState(isEditing ? (existingPost.note || '') : '')
   const [images, setImages] = useState(
@@ -269,7 +268,24 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
   )
 }
 
-function PhotoCard({ photo, currentUserId, onEdit }) {
+function LikesDisplay({ likes }) {
+  if (!likes || likes.length === 0) return null
+  const names = likes.map(id => {
+    const u = USERS.find(u => u.id === id)
+    return u ? u.name.split(' ')[0] : null
+  }).filter(Boolean)
+  if (names.length === 0) return null
+  return (
+    <div style={{
+      fontSize: 12, color: '#666', marginTop: 8,
+      paddingTop: 8, borderTop: '1px solid #2a2a38',
+    }}>
+      <span style={{ color: '#FF6B35' }}>&#x2665;</span> Liked by <span style={{ color: '#aaa' }}>{names.join(', ')}</span>
+    </div>
+  )
+}
+
+function PhotoCard({ photo, currentUserId, onEdit, onLike }) {
   const uploader = USERS.find(u => u.id === photo.user_id)
   if (!uploader) return null
   const date = new Date(photo.display_time)
@@ -277,6 +293,8 @@ function PhotoCard({ photo, currentUserId, onEdit }) {
   const timeStr = date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit' })
   const urls = photo.image_urls || []
   const canEdit = photo.user_id === currentUserId
+  const likes = photo.likes || []
+  const hasLiked = likes.includes(currentUserId)
 
   return (
     <div style={{
@@ -317,16 +335,24 @@ function PhotoCard({ photo, currentUserId, onEdit }) {
             <div style={{ color: '#555', fontSize: 11 }}>{dateStr} - {timeStr}</div>
           </div>
           {urls.length > 1 && (
-            <div style={{ color: '#555', fontSize: 12, marginRight: canEdit ? 6 : 0 }}>{urls.length} photos</div>
+            <div style={{ color: '#555', fontSize: 12, marginRight: 4 }}>{urls.length} photos</div>
           )}
           {canEdit && (
             <button onClick={() => onEdit(photo)} style={{
               background: '#2a2a38', border: 'none', color: '#888',
               borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12,
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'DM Sans', sans-serif", marginRight: 6,
             }}>Edit</button>
           )}
+          <button onClick={() => onLike(photo)} style={{
+            background: hasLiked ? '#FF6B3522' : '#2a2a38',
+            border: hasLiked ? '1px solid #FF6B3566' : '1px solid transparent',
+            borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+            fontSize: 15, lineHeight: 1, color: hasLiked ? '#FF6B35' : '#555',
+            fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
+          }}>&#x2665;</button>
         </div>
+        <LikesDisplay likes={likes} />
       </div>
     </div>
   )
@@ -343,6 +369,7 @@ export default function App() {
   const [showUpload, setShowUpload] = useState(false)
   const [editingPost, setEditingPost] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [feedLoading, setFeedLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -373,6 +400,7 @@ export default function App() {
     setShowUpload(false)
     setEditingPost(null)
     setFilter('all')
+    setSearchQuery('')
   }
 
   async function handleNewPost({ images, district, note, dateTime }) {
@@ -399,18 +427,31 @@ export default function App() {
       newUrls = await uploadImages(newImages.map(img => ({ dataUrl: img.dataUrl })), `${post.id}_edit_${Date.now()}`)
     }
     const allUrls = [...existingUrls, ...newUrls]
-    const updated = await updatePost({
-      id: post.id,
-      imageUrls: allUrls,
-      district,
-      note,
-      displayTime: dateTime,
-    })
+    const updated = await updatePost({ id: post.id, imageUrls: allUrls, district, note, displayTime: dateTime })
     setPhotos(prev => prev.map(p => p.id === updated.id ? updated : p))
     setEditingPost(null)
   }
 
-  const displayed = filter === 'all' ? photos : photos.filter(p => p.user_id === filter)
+  async function handleLike(photo) {
+    try {
+      const updated = await toggleLike(photo.id, currentUser.id, photo.likes)
+      setPhotos(prev => prev.map(p => p.id === updated.id ? updated : p))
+    } catch (e) {
+      setError('Could not update like. Try again.')
+    }
+  }
+
+  // Filter by rep tab, then by search query across location and note
+  const displayed = photos
+    .filter(p => filter === 'all' || p.user_id === filter)
+    .filter(p => {
+      if (!searchQuery.trim()) return true
+      const q = searchQuery.toLowerCase()
+      return (
+        (p.district && p.district.toLowerCase().includes(q)) ||
+        (p.note && p.note.toLowerCase().includes(q))
+      )
+    })
 
   if (!currentUser) return (
     <>
@@ -421,6 +462,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f0f14', fontFamily: "'DM Sans', sans-serif", paddingBottom: 80 }}>
+      {/* Header */}
       <div style={{
         background: '#1a1a24', borderBottom: '1px solid #2a2a38',
         padding: '14px 20px',
@@ -456,7 +498,42 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, padding: '16px 20px 8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+      {/* Search bar */}
+      <div style={{ padding: '12px 20px 0' }}>
+        <div style={{ position: 'relative' }}>
+          <input
+            style={{
+              ...inputStyle,
+              paddingLeft: 40,
+              background: '#1a1a24',
+              border: searchQuery ? '1px solid #FF6B3566' : '1px solid #2a2a38',
+            }}
+            placeholder="Search location or note..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          <span style={{
+            position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+            fontSize: 15, color: '#555', pointerEvents: 'none',
+          }}>&#x1F50D;</span>
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              background: '#2a2a38', border: 'none', color: '#888', borderRadius: '50%',
+              width: 20, height: 20, fontSize: 11, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>X</button>
+          )}
+        </div>
+        {searchQuery && (
+          <p style={{ color: '#555', fontSize: 12, marginTop: 8 }}>
+            {displayed.length} result{displayed.length !== 1 ? 's' : ''} for "{searchQuery}"
+          </p>
+        )}
+      </div>
+
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 8, padding: '12px 20px 8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {[{ id: 'all', label: 'All Team' }, ...USERS.map(u => ({ id: u.id, label: u.name.split(' ')[0] }))].map(tab => {
           const u = USERS.find(u => u.id === tab.id)
           const active = filter === tab.id
@@ -472,22 +549,28 @@ export default function App() {
         })}
       </div>
 
+      {/* Feed */}
       <div style={{ padding: '12px 20px', display: 'grid', gap: 16 }}>
         {feedLoading && photos.length === 0
-          ? <div style={{ textAlign: 'center', color: '#444', paddingTop: 60, fontSize: 14 }}>
-              Loading feed...
-            </div>
+          ? <div style={{ textAlign: 'center', color: '#444', paddingTop: 60, fontSize: 14 }}>Loading feed...</div>
           : displayed.length === 0
             ? <div style={{ textAlign: 'center', color: '#333', paddingTop: 60, fontSize: 14, lineHeight: 2 }}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>&#x1F4EB;</div>
-                {filter === 'all' ? 'No photos yet. Be the first to share!' : 'No posts from this rep yet.'}
+                {searchQuery ? `No results for "${searchQuery}"` : filter === 'all' ? 'No photos yet. Be the first to share!' : 'No posts from this rep yet.'}
               </div>
             : displayed.map(p => (
-                <PhotoCard key={p.id} photo={p} currentUserId={currentUser.id} onEdit={setEditingPost} />
+                <PhotoCard
+                  key={p.id}
+                  photo={p}
+                  currentUserId={currentUser.id}
+                  onEdit={setEditingPost}
+                  onLike={handleLike}
+                />
               ))
         }
       </div>
 
+      {/* FAB */}
       <button onClick={() => setShowUpload(true)} style={{
         position: 'fixed', bottom: 28, right: 24,
         width: 58, height: 58, borderRadius: '50%', border: 'none',

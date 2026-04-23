@@ -40,7 +40,7 @@ export async function createPost({ userId, imageUrls, district, note, displayTim
   const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`
   const { data, error } = await supabase
     .from('posts')
-    .insert([{ id, user_id: userId, image_urls: imageUrls, district, note, display_time: new Date(displayTime).toISOString() }])
+    .insert([{ id, user_id: userId, image_urls: imageUrls, district, note, display_time: new Date(displayTime).toISOString(), likes: [] }])
     .select()
     .single()
   if (error) {
@@ -61,6 +61,21 @@ export async function updatePost({ id, imageUrls, district, note, displayTime })
     console.error('Update error:', JSON.stringify(error))
     throw new Error('DB: ' + error.message)
   }
+  return data
+}
+
+export async function toggleLike(postId, userId, currentLikes) {
+  const likes = currentLikes || []
+  const newLikes = likes.includes(userId)
+    ? likes.filter(id => id !== userId)
+    : [...likes, userId]
+  const { data, error } = await supabase
+    .from('posts')
+    .update({ likes: newLikes })
+    .eq('id', postId)
+    .select()
+    .single()
+  if (error) throw new Error('Like error: ' + error.message)
   return data
 }
 
