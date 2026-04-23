@@ -15,13 +15,10 @@ export async function uploadImages(images, postId) {
     const blob = await res.blob()
     const ext = blob.type.split('/')[1] || 'jpg'
     const path = `${postId}/${i}.${ext}`
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('photos')
       .upload(path, blob, { contentType: blob.type, upsert: true })
-    if (error) {
-      console.error('Storage upload error:', JSON.stringify(error))
-      throw new Error('Storage: ' + error.message)
-    }
+    if (error) throw new Error('Storage: ' + error.message)
     const { data: urlData } = supabase.storage.from('photos').getPublicUrl(path)
     urls.push(urlData.publicUrl)
   }
@@ -43,10 +40,7 @@ export async function createPost({ userId, imageUrls, district, note, displayTim
     .insert([{ id, user_id: userId, image_urls: imageUrls, district, note, display_time: new Date(displayTime).toISOString(), likes: [] }])
     .select()
     .single()
-  if (error) {
-    console.error('Insert error:', JSON.stringify(error))
-    throw new Error('DB: ' + error.message)
-  }
+  if (error) throw new Error('DB: ' + error.message)
   return data
 }
 
@@ -57,18 +51,13 @@ export async function updatePost({ id, imageUrls, district, note, displayTime })
     .eq('id', id)
     .select()
     .single()
-  if (error) {
-    console.error('Update error:', JSON.stringify(error))
-    throw new Error('DB: ' + error.message)
-  }
+  if (error) throw new Error('DB: ' + error.message)
   return data
 }
 
 export async function toggleLike(postId, userId, currentLikes) {
   const likes = currentLikes || []
-  const newLikes = likes.includes(userId)
-    ? likes.filter(id => id !== userId)
-    : [...likes, userId]
+  const newLikes = likes.includes(userId) ? likes.filter(id => id !== userId) : [...likes, userId]
   const { data, error } = await supabase
     .from('posts')
     .update({ likes: newLikes })
@@ -84,15 +73,69 @@ export async function fetchPosts() {
     .from('posts')
     .select('*')
     .order('display_time', { ascending: false })
-  if (error) {
-    console.error('Fetch error:', JSON.stringify(error))
-    throw new Error('DB: ' + error.message)
-  }
+  if (error) throw new Error('DB: ' + error.message)
   return data || []
 }
 
 export async function deletePost(postId) {
   await deleteImages(postId)
   const { error } = await supabase.from('posts').delete().eq('id', postId)
+  if (error) throw error
+}
+
+// Comments
+export async function fetchComments(postId) {
+  const { data, error } = await supabase
+    .from('comments')
+    .select('*')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: true })
+  if (error) throw new Error('Comments: ' + error.message)
+  return data || []
+}
+
+export async function addComment({ postId, userId, content }) {
+  const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+  const { data, error } = await supabase
+    .from('comments')
+    .insert([{ id, post_id: postId, user_id: userId, content }])
+    .select()
+    .single()
+  if (error) throw new Error('Comment: ' + error.message)
+  return data
+}
+
+export async function deleteComment(commentId) {
+  const { error } = await supabase.from('comments').delete().eq('id', commentId)
+  if (error) throw error
+}
+
+// Announcements
+export async function fetchAnnouncement() {
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error('Announcement: ' + error.message)
+  return data
+}
+
+export async function postAnnouncement(content) {
+  // Delete existing announcement first (only one at a time)
+  await supabase.from('announcements').delete().neq('id', 'none')
+  const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+  const { data, error } = await supabase
+    .from('announcements')
+    .insert([{ id, content }])
+    .select()
+    .single()
+  if (error) throw new Error('Announcement: ' + error.message)
+  return data
+}
+
+export async function removeAnnouncement() {
+  const { error } = await supabase.from('announcements').delete().neq('id', 'none')
   if (error) throw error
 }
