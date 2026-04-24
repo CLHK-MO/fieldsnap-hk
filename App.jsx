@@ -862,9 +862,9 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, onDelete, autoOpenComme
           {currentUser.id === 'rep4' && (
             <button onClick={() => onDelete(photo.id)} style={{
               background: '#2a1a1a', border: '1px solid #5a2a2a', color: '#FF6B6B',
-              borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12,
-              fontFamily: "'DM Sans', sans-serif",
-            }}>Delete</button>
+              borderRadius: 8, padding: '6px 8px', cursor: 'pointer', fontSize: 15,
+              lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>&#x1F5D1;</button>
           )}
 
           <button onClick={() => onLike(photo)} style={{
