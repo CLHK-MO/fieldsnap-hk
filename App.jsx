@@ -1077,7 +1077,7 @@ export default function App() {
             )}
           </div>
 
-          <button onClick={loadFeed} disabled={feedLoading} style={{
+          <button onClick={() => { loadFeed(); window.scrollTo({ top: 0, behavior: 'smooth' }) }} disabled={feedLoading} style={{
             background: '#2a2a38', border: 'none', borderRadius: 8,
             padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#888',
             fontFamily: "'DM Sans', sans-serif",
