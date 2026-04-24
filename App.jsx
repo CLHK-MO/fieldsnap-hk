@@ -15,7 +15,6 @@ const USERS = [
 const SESSION_KEY = 'fieldsnap_user'
 const SEEN_KEY = 'fieldsnap_seen'
 
-// Stores how many comments each post had when user last viewed them
 function getSeenCounts() {
   try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') } catch { return {} }
 }
@@ -57,7 +56,6 @@ function Avatar({ user, size = 36 }) {
   )
 }
 
-// -- LIGHTBOX --
 function Lightbox({ urls, startIndex, onClose }) {
   const [current, setCurrent] = useState(startIndex)
   const touchStartX = useRef(null)
@@ -89,14 +87,16 @@ function Lightbox({ urls, startIndex, onClose }) {
     }} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <button onClick={onClose} style={{
         position: 'absolute', top: 20, right: 20,
-        background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
-        borderRadius: '50%', width: 40, height: 40, fontSize: 18, cursor: 'pointer', zIndex: 201,
+        background: 'rgba(0,0,0,0.75)', border: '2px solid rgba(255,255,255,0.3)', color: '#fff',
+        borderRadius: '50%', width: 44, height: 44, fontSize: 18, cursor: 'pointer', zIndex: 201,
+        fontWeight: 700, boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
       }}>X</button>
       {current > 0 && (
         <button onClick={e => { e.stopPropagation(); setCurrent(c => c - 1) }} style={{
           position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-          background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+          background: 'rgba(0,0,0,0.75)', border: '2px solid rgba(255,255,255,0.3)', color: '#fff',
           borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: 'pointer', zIndex: 201,
+          fontWeight: 700, boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
         }}>&lt;</button>
       )}
       <img src={urls[current]} alt="" onClick={e => e.stopPropagation()} style={{
@@ -106,8 +106,9 @@ function Lightbox({ urls, startIndex, onClose }) {
       {current < urls.length - 1 && (
         <button onClick={e => { e.stopPropagation(); setCurrent(c => c + 1) }} style={{
           position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
-          background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+          background: 'rgba(0,0,0,0.75)', border: '2px solid rgba(255,255,255,0.3)', color: '#fff',
           borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: 'pointer', zIndex: 201,
+          fontWeight: 700, boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
         }}>&gt;</button>
       )}
       {urls.length > 1 && (
@@ -121,8 +122,7 @@ function Lightbox({ urls, startIndex, onClose }) {
   )
 }
 
-// -- COMMENTS --
-function CommentsSection({ post, currentUser, onNewCount }) {
+function CommentsSection({ post, currentUser, onCountChange }) {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
@@ -132,7 +132,7 @@ function CommentsSection({ post, currentUser, onNewCount }) {
     fetchComments(post.id).then(data => {
       setComments(data)
       markSeen(post.id, data.length)
-      if (onNewCount) onNewCount(data.length)
+      if (onCountChange) onCountChange(data.length)
     }).finally(() => setLoading(false))
   }, [post.id])
 
@@ -144,7 +144,7 @@ function CommentsSection({ post, currentUser, onNewCount }) {
       const updated = [...comments, comment]
       setComments(updated)
       markSeen(post.id, updated.length)
-      if (onNewCount) onNewCount(updated.length)
+      if (onCountChange) onCountChange(updated.length)
       setText('')
     } catch (e) { console.error(e) }
     finally { setSubmitting(false) }
@@ -156,7 +156,7 @@ function CommentsSection({ post, currentUser, onNewCount }) {
       const updated = comments.filter(c => c.id !== commentId)
       setComments(updated)
       markSeen(post.id, updated.length)
-      if (onNewCount) onNewCount(updated.length)
+      if (onCountChange) onCountChange(updated.length)
     } catch (e) { console.error(e) }
   }
 
@@ -215,7 +215,6 @@ function CommentsSection({ post, currentUser, onNewCount }) {
   )
 }
 
-// -- ANNOUNCEMENT BANNER --
 function AnnouncementBanner({ announcement, currentUser, onRemove, onPost }) {
   const isMarketing = currentUser.id === 'rep4'
   const [editing, setEditing] = useState(false)
@@ -285,7 +284,6 @@ function AnnouncementBanner({ announcement, currentUser, onRemove, onPost }) {
   )
 }
 
-// -- LOGIN --
 function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -336,7 +334,6 @@ function LoginScreen({ onLogin }) {
   )
 }
 
-// -- POST MODAL --
 function PostModal({ user, onClose, onSubmit, existingPost }) {
   const isEditing = !!existingPost
   const [district, setDistrict] = useState(isEditing ? existingPost.district : '')
@@ -482,8 +479,7 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
   )
 }
 
-// -- PHOTO CARD --
-function PhotoCard({ photo, currentUser, onEdit, onLike }) {
+function PhotoCard({ photo, currentUser, onEdit, onLike, onGlobalUnreadChange }) {
   const uploader = USERS.find(u => u.id === photo.user_id)
   if (!uploader) return null
 
@@ -492,28 +488,30 @@ function PhotoCard({ photo, currentUser, onEdit, onLike }) {
   const timeStr = date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit' })
   const urls = photo.image_urls || []
   const canEdit = photo.user_id === currentUser.id
+  const isMyPost = photo.user_id === currentUser.id
   const likes = photo.likes || []
   const hasLiked = likes.includes(currentUser.id)
-  const isMyPost = photo.user_id === currentUser.id
 
   const [lightbox, setLightbox] = useState(null)
   const [showComments, setShowComments] = useState(false)
+  const [commentCount, setCommentCount] = useState(null)
 
-  // Badge: for my own posts, track unseen comments
-  const seen = getSeenCounts()
-  const seenCount = seen[photo.id] !== undefined ? seen[photo.id] : -1
-  const [liveCount, setLiveCount] = useState(null)
-
-  // Badge shows when: it's my post, comments are hidden, and we suspect there are unseen ones
-  // We load comment count in background for own posts only
-  const [bgCount, setBgCount] = useState(null)
+  // Load comment count in background for ALL posts (so count shows on button)
+  // For own posts this also powers the unread badge
   useEffect(() => {
-    if (!isMyPost || showComments) return
-    fetchComments(photo.id).then(data => setBgCount(data.length))
-  }, [photo.id, isMyPost, showComments])
+    fetchComments(photo.id).then(data => {
+      setCommentCount(data.length)
+      // Only mark seen for own posts when comments are currently open
+      // Don't auto-mark seen here — let the user open comments to mark seen
+    })
+  }, [photo.id])
 
-  const commentCount = liveCount !== null ? liveCount : bgCount
-  const hasUnread = isMyPost && !showComments && commentCount !== null && commentCount > seenCount && seenCount !== -1
+  // Seen count: how many comments this user last acknowledged
+  const seenCount = getSeenCounts()[photo.id] !== undefined ? getSeenCounts()[photo.id] : 0
+  // Unread = my post + comments hidden + more comments than last seen
+  const unreadCount = isMyPost && !showComments && commentCount !== null && commentCount > seenCount
+    ? commentCount - seenCount
+    : 0
 
   const likeNames = likes.map(id => {
     const u = USERS.find(u => u.id === id)
@@ -526,7 +524,6 @@ function PhotoCard({ photo, currentUser, onEdit, onLike }) {
       border: '1px solid #2a2a38', overflow: 'hidden',
       animation: 'fadeUp 0.4s ease both',
     }}>
-      {/* Images */}
       {urls.length === 1
         ? <img src={urls[0]} alt="" onClick={() => setLightbox(0)}
             style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
@@ -558,7 +555,6 @@ function PhotoCard({ photo, currentUser, onEdit, onLike }) {
           <p style={{ color: '#ddd', fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>{photo.note}</p>
         )}
 
-        {/* Footer */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid #2a2a38', paddingTop: 12 }}>
           <Avatar user={uploader} size={32} />
           <div style={{ flex: 1 }}>
@@ -569,23 +565,25 @@ function PhotoCard({ photo, currentUser, onEdit, onLike }) {
             <div style={{ color: '#555', fontSize: 12 }}>{urls.length} photos</div>
           )}
 
-          {/* Comment button with badge */}
+          {/* Comment button with unread badge */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowComments(s => !s)} style={{
               background: showComments ? '#2a3a4a' : '#2a2a38',
               border: showComments ? '1px solid #00B4D844' : '1px solid transparent',
               borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
-              fontSize: 14, color: showComments ? '#00B4D8' : '#888',
+              fontSize: 13, color: showComments ? '#00B4D8' : '#888',
               fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
-            }}>&#x1F4AC;{commentCount !== null && commentCount > 0 ? ` ${commentCount}` : ''}</button>
-            {hasUnread && (
+            }}>
+              &#x1F4AC;{commentCount !== null && commentCount > 0 ? ` ${commentCount}` : ''}
+            </button>
+            {unreadCount > 0 && (
               <span style={{
-                position: 'absolute', top: -5, right: -5,
+                position: 'absolute', top: -6, right: -6,
                 background: '#FF6B35', borderRadius: '50%',
-                width: 18, height: 18, fontSize: 10, color: '#fff',
+                minWidth: 18, height: 18, fontSize: 10, color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, border: '2px solid #1a1a24',
-              }}>{commentCount - seenCount}</span>
+                fontWeight: 700, border: '2px solid #1a1a24', padding: '0 3px',
+              }}>{unreadCount}</span>
             )}
           </div>
 
@@ -597,7 +595,6 @@ function PhotoCard({ photo, currentUser, onEdit, onLike }) {
             }}>Edit</button>
           )}
 
-          {/* Like button */}
           <button onClick={() => onLike(photo)} style={{
             background: hasLiked ? '#FF6B3522' : '#2a2a38',
             border: hasLiked ? '1px solid #FF6B3566' : '1px solid transparent',
@@ -607,19 +604,20 @@ function PhotoCard({ photo, currentUser, onEdit, onLike }) {
           }}>&#x2665;</button>
         </div>
 
-        {/* Like names */}
         {likeNames.length > 0 && (
           <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
             <span style={{ color: '#FF6B35' }}>&#x2665;</span> Liked by <span style={{ color: '#aaa' }}>{likeNames.join(', ')}</span>
           </div>
         )}
 
-        {/* Comments section */}
         {showComments && (
           <CommentsSection
             post={photo}
             currentUser={currentUser}
-            onNewCount={count => { setLiveCount(count); markSeen(photo.id, count) }}
+            onCountChange={count => {
+              setCommentCount(count)
+              if (onGlobalUnreadChange) onGlobalUnreadChange()
+            }}
           />
         )}
       </div>
@@ -629,7 +627,6 @@ function PhotoCard({ photo, currentUser, onEdit, onLike }) {
   )
 }
 
-// -- MAIN APP --
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try { const s = localStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null }
@@ -643,6 +640,23 @@ export default function App() {
   const [feedLoading, setFeedLoading] = useState(false)
   const [error, setError] = useState('')
   const [announcement, setAnnouncement] = useState(null)
+  const [globalUnread, setGlobalUnread] = useState(0)
+
+  async function checkUnread(posts) {
+    if (!currentUser) return
+    const myPosts = posts.filter(p => p.user_id === currentUser.id)
+    if (myPosts.length === 0) { setGlobalUnread(0); return }
+    const seen = getSeenCounts()
+    let total = 0
+    await Promise.all(myPosts.map(async post => {
+      try {
+        const comments = await fetchComments(post.id)
+        const seenCount = seen[post.id] !== undefined ? seen[post.id] : 0
+        if (comments.length > seenCount) total += comments.length - seenCount
+      } catch (e) {}
+    }))
+    setGlobalUnread(total)
+  }
 
   const loadFeed = useCallback(async () => {
     if (!currentUser) return
@@ -651,6 +665,7 @@ export default function App() {
       const [posts, ann] = await Promise.all([fetchPosts(), fetchAnnouncement()])
       setPhotos(posts)
       setAnnouncement(ann)
+      checkUnread(posts)
     } catch (e) { setError('Could not load feed.') }
     finally { setFeedLoading(false) }
   }, [currentUser])
@@ -726,7 +741,6 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f0f14', fontFamily: "'DM Sans', sans-serif", paddingBottom: 80 }}>
-      {/* Header */}
       <div style={{
         background: '#1a1a24', borderBottom: '1px solid #2a2a38', padding: '14px 20px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -738,6 +752,29 @@ export default function App() {
           fontWeight: 800, fontSize: 18, letterSpacing: -0.5,
         }}>FieldSnap HK</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {globalUnread > 0 && (
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <button onClick={() => {
+                const firstUnread = photos.find(p => {
+                  if (p.user_id !== currentUser.id) return false
+                  const seen = getSeenCounts()
+                  return (seen[p.id] !== undefined ? seen[p.id] : 0) < fetchComments.length
+                })
+                document.getElementById('feed-top')?.scrollIntoView({ behavior: 'smooth' })
+              }} style={{
+                background: '#2a1a0f', border: '1px solid #FF6B3544', borderRadius: 8,
+                padding: '6px 10px', cursor: 'pointer', fontSize: 14, color: '#FF6B35',
+                fontFamily: "'DM Sans', sans-serif",
+              }}>&#x1F514;</button>
+              <span style={{
+                position: 'absolute', top: -6, right: -6,
+                background: '#FF6B35', borderRadius: '50%',
+                minWidth: 18, height: 18, fontSize: 10, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, border: '2px solid #1a1a24', padding: '0 3px',
+              }}>{globalUnread}</span>
+            </div>
+          )}
           <button onClick={loadFeed} disabled={feedLoading} style={{
             background: '#2a2a38', border: 'none', borderRadius: 8,
             padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#888',
@@ -766,7 +803,6 @@ export default function App() {
         onRemove={handleRemoveAnnouncement} onPost={handlePostAnnouncement}
       />
 
-      {/* Search */}
       <div style={{ padding: '12px 20px 0' }}>
         <div style={{ position: 'relative' }}>
           <input
@@ -791,7 +827,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Filter tabs */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 20px 8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {[{ id: 'all', label: 'All Team' }, ...USERS.map(u => ({ id: u.id, label: u.name.split(' ')[0] }))].map(tab => {
           const u = USERS.find(u => u.id === tab.id)
@@ -808,8 +843,7 @@ export default function App() {
         })}
       </div>
 
-      {/* Feed */}
-      <div style={{ padding: '12px 20px', display: 'grid', gap: 16 }}>
+      <div id="feed-top" style={{ padding: '12px 20px', display: 'grid', gap: 16 }}>
         {feedLoading && photos.length === 0
           ? <div style={{ textAlign: 'center', color: '#444', paddingTop: 60, fontSize: 14 }}>Loading feed...</div>
           : displayed.length === 0
@@ -818,12 +852,11 @@ export default function App() {
                 {searchQuery ? `No results for "${searchQuery}"` : filter === 'all' ? 'No photos yet. Be the first to share!' : 'No posts from this rep yet.'}
               </div>
             : displayed.map(p => (
-                <PhotoCard key={p.id} photo={p} currentUser={currentUser} onEdit={setEditingPost} onLike={handleLike} />
+                <PhotoCard key={p.id} photo={p} currentUser={currentUser} onEdit={setEditingPost} onLike={handleLike} onGlobalUnreadChange={() => checkUnread(photos)} />
               ))
         }
       </div>
 
-      {/* FAB */}
       <button onClick={() => setShowUpload(true)} style={{
         position: 'fixed', bottom: 28, right: 24,
         width: 58, height: 58, borderRadius: '50%', border: 'none',

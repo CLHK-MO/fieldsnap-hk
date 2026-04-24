@@ -83,7 +83,6 @@ export async function deletePost(postId) {
   if (error) throw error
 }
 
-// Comments
 export async function fetchComments(postId) {
   const { data, error } = await supabase
     .from('comments')
@@ -110,7 +109,6 @@ export async function deleteComment(commentId) {
   if (error) throw error
 }
 
-// Announcements
 export async function fetchAnnouncement() {
   const { data, error } = await supabase
     .from('announcements')
@@ -123,7 +121,6 @@ export async function fetchAnnouncement() {
 }
 
 export async function postAnnouncement(content) {
-  // Delete existing announcement first (only one at a time)
   await supabase.from('announcements').delete().neq('id', 'none')
   const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`
   const { data, error } = await supabase
