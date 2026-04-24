@@ -20,7 +20,8 @@ export async function uploadImages(images, postId) {
       .upload(path, blob, { contentType: blob.type, upsert: true })
     if (error) throw new Error('Storage: ' + error.message)
     const { data: urlData } = supabase.storage.from('photos').getPublicUrl(path)
-    urls.push({ url: urlData.publicUrl, type: blob.type.startsWith('video/') ? 'video' : 'image' })
+    const mediaType = (img.isVideo || blob.type.startsWith('video/')) ? 'video' : 'image'
+    urls.push({ url: urlData.publicUrl, type: mediaType })
   }
   return urls
 }

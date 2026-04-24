@@ -20,6 +20,16 @@ function toLocalDateTimeString(date) {
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+// Normalize image_urls -- old posts store plain strings, new posts store {url, type} objects
+function normalizeMedia(items) {
+  if (!items || !Array.isArray(items)) return []
+  return items.map(item => {
+    if (typeof item === 'string') return { url: item, type: 'image' }
+    if (item && item.url) return item
+    return { url: String(item), type: 'image' }
+  })
+}
+
 const labelStyle = {
   display: 'block', color: '#888', fontSize: 12,
   fontWeight: 600, marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase',
@@ -476,9 +486,9 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
     isEditing
       ? (existingPost.image_urls || []).map((item, i) => ({
           id: `existing_${i}`,
-          dataUrl: item.url || item,
+          dataUrl: typeof item === 'string' ? item : (item.url || item),
           isExisting: true,
-          isVideo: item.type === 'video',
+          isVideo: typeof item === 'object' && item.type === 'video',
         }))
       : []
   )
@@ -707,7 +717,7 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCom
   const date = new Date(photo.display_time)
   const dateStr = date.toLocaleDateString('en-HK', { day: 'numeric', month: 'short', year: 'numeric' })
   const timeStr = date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit' })
-  const urls = photo.image_urls || []
+  const urls = normalizeMedia(photo.image_urls)
   const canEdit = photo.user_id === currentUser.id
   const likes = photo.likes || []
   const hasLiked = likes.includes(currentUser.id)
@@ -913,11 +923,10 @@ export default function App() {
 
   async function handleEditPost({ images, district, note, dateTime }) {
     const post = editingPost
-    const existingUrls = images.filter(img => img.isExisting).map(img => {
-      // Existing items may already be {url, type} objects or plain strings
-      if (typeof img.dataUrl === 'object') return img.dataUrl
-      return { url: img.dataUrl, type: img.isVideo ? 'video' : 'image' }
-    })
+    const existingUrls = images.filter(img => img.isExisting).map(img => ({
+      url: img.dataUrl,
+      type: img.isVideo ? 'video' : 'image',
+    }))
     const newImages = images.filter(img => !img.isExisting)
     let newUrls = []
     if (newImages.length > 0) {
