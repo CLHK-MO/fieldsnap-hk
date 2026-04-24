@@ -24,8 +24,29 @@ function toLocalDateTimeString(date) {
 function normalizeMedia(items) {
   if (!items || !Array.isArray(items)) return []
   return items.map(item => {
-    if (typeof item === 'string') return { url: item, type: 'image' }
-    if (item && item.url) return item
+    // Format 1: plain URL string "https://..."
+    // Format 2: video prefix "video|https://..."
+    // Format 3: double-encoded JSON string "{"url":"...","type":"..."}"
+    // Format 4: proper object {url: "...", type: "..."}
+    if (typeof item === 'string') {
+      // Try parsing as JSON first (double-encoded format)
+      if (item.startsWith('{') || item.startsWith('"')) {
+        try {
+          const parsed = JSON.parse(item)
+          if (parsed && parsed.url) {
+            return { url: parsed.url, type: parsed.type || 'image' }
+          }
+        } catch (e) {}
+      }
+      // Video prefix format
+      if (item.startsWith('video|')) {
+        return { url: item.slice(6), type: 'video' }
+      }
+      // Plain URL string
+      return { url: item, type: 'image' }
+    }
+    // Proper object
+    if (item && item.url) return { url: item.url, type: item.type || 'image' }
     return { url: String(item), type: 'image' }
   })
 }
