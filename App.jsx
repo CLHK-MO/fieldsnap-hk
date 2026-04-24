@@ -83,7 +83,7 @@ function Lightbox({ urls, startIndex, onClose }) {
 
   return (
     <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)',
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)',
       zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
       animation: 'fadeIn 0.2s ease',
     }} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
@@ -188,11 +188,11 @@ function NotificationsPanel({ notifications, onClose, onNavigate, onMarkAllRead 
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 150,
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 150,
       display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
     }} onClick={e => e.target === e.currentTarget && onClose()}>
       {/* Backdrop */}
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div onClick={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)' }} />
 
       {/* Panel */}
       <div style={{
@@ -548,7 +548,7 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)',
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       zIndex: 100, fontFamily: "'DM Sans', sans-serif", animation: 'fadeIn 0.2s ease',
     }} onClick={e => e.target === e.currentTarget && !submitting && onClose()}>
@@ -784,7 +784,7 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCom
                   }
                   {i === 5 && urls.length > 6 && (
                     <div onClick={() => setLightbox(5)} style={{
-                      position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)',
+                      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#fff', fontWeight: 700, fontSize: 20, cursor: 'pointer',
                     }}>+{urls.length - 6}</div>
