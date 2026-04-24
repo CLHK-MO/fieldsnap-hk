@@ -4,6 +4,7 @@ import supabase, {
   fetchComments, addComment, deleteComment,
   fetchAnnouncement, postAnnouncement, removeAnnouncement,
   fetchNotifications, markNotificationRead, markAllNotificationsRead,
+  deletePost,
 } from './supabase.js'
 
 const USERS = [
@@ -738,7 +739,7 @@ function VideoPlayer({ url }) {
 }
 
 // -- PHOTO CARD --
-function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCommentsViewed }) {
+function PhotoCard({ photo, currentUser, onEdit, onLike, onDelete, autoOpenComments, onCommentsViewed }) {
   const uploader = USERS.find(u => u.id === photo.user_id)
   if (!uploader) return null
 
@@ -858,6 +859,13 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCom
               fontFamily: "'DM Sans', sans-serif",
             }}>Edit</button>
           )}
+          {currentUser.id === 'rep4' && (
+            <button onClick={() => onDelete(photo.id)} style={{
+              background: '#2a1a1a', border: '1px solid #5a2a2a', color: '#FF6B6B',
+              borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12,
+              fontFamily: "'DM Sans', sans-serif",
+            }}>Delete</button>
+          )}
 
           <button onClick={() => onLike(photo)} style={{
             background: hasLiked ? '#FF6B3522' : '#2a2a38',
@@ -963,6 +971,14 @@ export default function App() {
     const updated = await updatePost({ id: post.id, imageUrls: [...existingUrls, ...newUrls], district, note, displayTime: dateTime })
     setPhotos(prev => prev.map(p => p.id === updated.id ? updated : p))
     setEditingPost(null)
+  }
+
+  async function handleDeletePost(postId) {
+    if (!window.confirm('Delete this post? This cannot be undone.')) return
+    try {
+      await deletePost(postId)
+      setPhotos(prev => prev.filter(p => p.id !== postId))
+    } catch (e) { setError('Could not delete post.') }
   }
 
   async function handleLike(photo) {
@@ -1148,6 +1164,7 @@ export default function App() {
                   currentUser={currentUser}
                   onEdit={setEditingPost}
                   onLike={handleLike}
+                  onDelete={handleDeletePost}
                   autoOpenComments={activePostId === p.id}
                   onCommentsViewed={handleCommentsViewed}
                 />
