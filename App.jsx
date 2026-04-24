@@ -678,20 +678,21 @@ function VideoPlayer({ url }) {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', background: '#000', aspectRatio: '16/9' }}>
+    <div style={{ position: 'relative', width: '100%', background: '#000', paddingTop: '56.25%' }}>
       <video
         ref={videoRef}
         src={url}
         muted={muted}
         playsInline
+        webkit-playsinline="true"
         preload="metadata"
         onEnded={() => setPlaying(false)}
         onClick={togglePlay}
-        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', cursor: 'pointer' }}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block', cursor: 'pointer' }}
       />
       {!playing && (
         <div onClick={togglePlay} style={{
-          position: 'absolute', inset: 0,
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer',
         }}>
@@ -764,7 +765,7 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCom
         ? urls[0].type === 'video'
           ? <VideoPlayer url={urls[0].url} />
           : <img src={urls[0].url || urls[0]} alt="" onClick={() => setLightbox(0)}
-              style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
+              style={{ width: '100%', height: 'auto', minHeight: 200, maxHeight: 360, objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
         : <div style={{ display: 'grid', gridTemplateColumns: urls.length === 2 ? '1fr 1fr' : '1fr 1fr 1fr', gap: 2 }}>
             {urls.slice(0, 6).map((item, i) => {
               const isVideo = item.type === 'video'
@@ -773,13 +774,13 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCom
                 <div key={i} style={{ position: 'relative' }}>
                   {isVideo
                     ? <div onClick={() => setLightbox(i)} style={{
-                        aspectRatio: '1/1', background: '#131318', cursor: 'pointer',
+                        height: 120, background: '#131318', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
                         <span style={{ fontSize: 32 }}>&#x1F3AC;</span>
                       </div>
                     : <img src={src} alt="" onClick={() => setLightbox(i)}
-                        style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
+                        style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
                   }
                   {i === 5 && urls.length > 6 && (
                     <div onClick={() => setLightbox(5)} style={{

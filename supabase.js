@@ -20,8 +20,7 @@ export async function uploadImages(images, postId) {
       .upload(path, blob, { contentType: blob.type, upsert: true })
     if (error) throw new Error('Storage: ' + error.message)
     const { data: urlData } = supabase.storage.from('photos').getPublicUrl(path)
-    const mediaType = (img.isVideo || blob.type.startsWith('video/')) ? 'video' : 'image'
-    urls.push({ url: urlData.publicUrl, type: mediaType })
+    urls.push(urlData.publicUrl)
   }
   return urls
 }
@@ -103,7 +102,11 @@ export async function addComment({ postId, userId, content, postOwnerId, postDis
     .single()
   if (error) throw new Error('Comment: ' + error.message)
 
+  // Create notifications for everyone who should be notified:
+  // 1. Post owner (if commenter is not the owner)
+  // 2. Anyone else who has commented on this post (reply notification)
   try {
+    // Get all existing comments to find who else commented
     const { data: existingComments } = await supabase
       .from('comments')
       .select('user_id')
@@ -111,11 +114,16 @@ export async function addComment({ postId, userId, content, postOwnerId, postDis
       .neq('id', id)
 
     const notifyUserIds = new Set()
+    // Notify post owner
     if (postOwnerId && postOwnerId !== userId) notifyUserIds.add(postOwnerId)
+    // Notify other commenters
     if (existingComments) {
-      existingComments.forEach(c => { if (c.user_id !== userId) notifyUserIds.add(c.user_id) })
+      existingComments.forEach(c => {
+        if (c.user_id !== userId) notifyUserIds.add(c.user_id)
+      })
     }
 
+    // Upsert notifications for each user to notify
     for (const notifyUserId of notifyUserIds) {
       const notifId = `${notifyUserId}_${postId}`
       await supabase.from('notifications').upsert({
@@ -128,7 +136,9 @@ export async function addComment({ postId, userId, content, postOwnerId, postDis
         read: false,
       })
     }
-  } catch (e) { console.error('Notification error:', e) }
+  } catch (e) {
+    console.error('Notification error:', e)
+  }
 
   return data
 }
@@ -138,6 +148,7 @@ export async function deleteComment(commentId) {
   if (error) throw error
 }
 
+// Notifications
 export async function fetchNotifications(userId) {
   const { data, error } = await supabase
     .from('notifications')
@@ -156,6 +167,7 @@ export async function markAllNotificationsRead(userId) {
   await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
 }
 
+// Announcements
 export async function fetchAnnouncement() {
   const { data, error } = await supabase
     .from('announcements')
