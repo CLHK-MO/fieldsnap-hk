@@ -3,6 +3,7 @@ import supabase, {
   createPost, updatePost, fetchPosts, uploadImages, toggleLike,
   fetchComments, addComment, deleteComment,
   fetchAnnouncement, postAnnouncement, removeAnnouncement,
+  fetchNotifications, markNotificationRead, markAllNotificationsRead,
 } from './supabase.js'
 
 const USERS = [
@@ -13,16 +14,6 @@ const USERS = [
 ]
 
 const SESSION_KEY = 'fieldsnap_user'
-const SEEN_KEY = 'fieldsnap_seen'
-
-function getSeenCounts() {
-  try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') } catch { return {} }
-}
-function markSeen(postId, count) {
-  const seen = getSeenCounts()
-  seen[postId] = count
-  localStorage.setItem(SEEN_KEY, JSON.stringify(seen))
-}
 
 function toLocalDateTimeString(date) {
   const pad = n => String(n).padStart(2, '0')
@@ -56,6 +47,7 @@ function Avatar({ user, size = 36 }) {
   )
 }
 
+// -- LIGHTBOX --
 function Lightbox({ urls, startIndex, onClose }) {
   const [current, setCurrent] = useState(startIndex)
   const touchStartX = useRef(null)
@@ -122,6 +114,137 @@ function Lightbox({ urls, startIndex, onClose }) {
   )
 }
 
+// -- NOTIFICATIONS PANEL --
+function NotificationsPanel({ notifications, onClose, onNavigate, onMarkAllRead }) {
+  const unread = notifications.filter(n => !n.read)
+  const read = notifications.filter(n => n.read)
+
+  function timeAgo(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins}m ago`
+    if (hours < 24) return `${hours}h ago`
+    return `${days}d ago`
+  }
+
+  function NotifItem({ n }) {
+    const postOwner = USERS.find(u => u.id === n.post_owner_id)
+    const isMyPost = n.post_owner_id === n.user_id
+    const label = isMyPost
+      ? `New comment on your post`
+      : `New reply on ${postOwner ? postOwner.name.split(' ')[0] + "'s" : 'a'} post`
+
+    return (
+      <div
+        onClick={() => onNavigate(n)}
+        style={{
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+          padding: '14px 20px', cursor: 'pointer',
+          background: n.read ? 'transparent' : 'rgba(255,107,53,0.06)',
+          borderBottom: '1px solid #2a2a38',
+          transition: 'background 0.15s',
+        }}
+      >
+        <div style={{
+          width: 10, height: 10, borderRadius: '50%', flexShrink: 0, marginTop: 4,
+          background: n.read ? 'transparent' : '#FF6B35',
+          border: n.read ? '1px solid #333' : 'none',
+        }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ color: n.read ? '#666' : '#ddd', fontSize: 13, fontWeight: n.read ? 400 : 600, lineHeight: 1.4 }}>
+            {label}
+          </div>
+          <div style={{
+            display: 'inline-block', background: '#2a2a38',
+            color: '#FF6B35', borderRadius: 6, padding: '2px 8px',
+            fontSize: 11, fontWeight: 600, marginTop: 4,
+          }}>&#x1F4CD; {n.post_district}</div>
+          <div style={{ color: '#444', fontSize: 11, marginTop: 4 }}>
+            {timeAgo(n.last_comment_at)}
+          </div>
+        </div>
+        <div style={{ color: '#444', fontSize: 12, flexShrink: 0 }}>&gt;</div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 150,
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+
+      {/* Panel */}
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: 360,
+        height: '100vh', background: '#1a1a24',
+        borderLeft: '1px solid #2a2a38',
+        display: 'flex', flexDirection: 'column',
+        animation: 'slideInRight 0.25s ease',
+        fontFamily: "'DM Sans', sans-serif",
+        zIndex: 151,
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 20px', borderBottom: '1px solid #2a2a38',
+        }}>
+          <div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>Notifications</div>
+            {unread.length > 0 && (
+              <div style={{ color: '#FF6B35', fontSize: 12, marginTop: 2 }}>{unread.length} unread</div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {unread.length > 0 && (
+              <button onClick={onMarkAllRead} style={{
+                background: '#2a2a38', border: 'none', color: '#888',
+                borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12,
+                fontFamily: "'DM Sans', sans-serif",
+              }}>Mark all read</button>
+            )}
+            <button onClick={onClose} style={{
+              background: '#2a2a38', border: 'none', color: '#888',
+              borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13,
+              fontFamily: "'DM Sans', sans-serif",
+            }}>Close</button>
+          </div>
+        </div>
+
+        {/* List */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {notifications.length === 0
+            ? <div style={{ textAlign: 'center', color: '#444', paddingTop: 60, fontSize: 14 }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>&#x1F514;</div>
+                No notifications yet
+              </div>
+            : <>
+                {unread.length > 0 && (
+                  <>
+                    <div style={{ padding: '10px 20px 6px', color: '#555', fontSize: 11, fontWeight: 600, letterSpacing: 0.5 }}>UNREAD</div>
+                    {unread.map(n => <NotifItem key={n.id} n={n} />)}
+                  </>
+                )}
+                {read.length > 0 && (
+                  <>
+                    <div style={{ padding: '10px 20px 6px', color: '#555', fontSize: 11, fontWeight: 600, letterSpacing: 0.5 }}>EARLIER</div>
+                    {read.map(n => <NotifItem key={n.id} n={n} />)}
+                  </>
+                )}
+              </>
+          }
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// -- COMMENTS --
 function CommentsSection({ post, currentUser, onCountChange }) {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -131,7 +254,6 @@ function CommentsSection({ post, currentUser, onCountChange }) {
   useEffect(() => {
     fetchComments(post.id).then(data => {
       setComments(data)
-      markSeen(post.id, data.length)
       if (onCountChange) onCountChange(data.length)
     }).finally(() => setLoading(false))
   }, [post.id])
@@ -140,10 +262,15 @@ function CommentsSection({ post, currentUser, onCountChange }) {
     if (!text.trim()) return
     setSubmitting(true)
     try {
-      const comment = await addComment({ postId: post.id, userId: currentUser.id, content: text.trim() })
+      const comment = await addComment({
+        postId: post.id,
+        userId: currentUser.id,
+        content: text.trim(),
+        postOwnerId: post.user_id,
+        postDistrict: post.district,
+      })
       const updated = [...comments, comment]
       setComments(updated)
-      markSeen(post.id, updated.length)
       if (onCountChange) onCountChange(updated.length)
       setText('')
     } catch (e) { console.error(e) }
@@ -155,7 +282,6 @@ function CommentsSection({ post, currentUser, onCountChange }) {
       await deleteComment(commentId)
       const updated = comments.filter(c => c.id !== commentId)
       setComments(updated)
-      markSeen(post.id, updated.length)
       if (onCountChange) onCountChange(updated.length)
     } catch (e) { console.error(e) }
   }
@@ -215,6 +341,7 @@ function CommentsSection({ post, currentUser, onCountChange }) {
   )
 }
 
+// -- ANNOUNCEMENT BANNER --
 function AnnouncementBanner({ announcement, currentUser, onRemove, onPost }) {
   const isMarketing = currentUser.id === 'rep4'
   const [editing, setEditing] = useState(false)
@@ -284,6 +411,7 @@ function AnnouncementBanner({ announcement, currentUser, onRemove, onPost }) {
   )
 }
 
+// -- LOGIN --
 function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -334,6 +462,7 @@ function LoginScreen({ onLogin }) {
   )
 }
 
+// -- POST MODAL --
 function PostModal({ user, onClose, onSubmit, existingPost }) {
   const isEditing = !!existingPost
   const [district, setDistrict] = useState(isEditing ? existingPost.district : '')
@@ -479,7 +608,8 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
   )
 }
 
-function PhotoCard({ photo, currentUser, onEdit, onLike, onGlobalUnreadChange }) {
+// -- PHOTO CARD --
+function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCommentsViewed }) {
   const uploader = USERS.find(u => u.id === photo.user_id)
   if (!uploader) return null
 
@@ -488,30 +618,27 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, onGlobalUnreadChange })
   const timeStr = date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit' })
   const urls = photo.image_urls || []
   const canEdit = photo.user_id === currentUser.id
-  const isMyPost = photo.user_id === currentUser.id
   const likes = photo.likes || []
   const hasLiked = likes.includes(currentUser.id)
 
   const [lightbox, setLightbox] = useState(null)
   const [showComments, setShowComments] = useState(false)
   const [commentCount, setCommentCount] = useState(null)
+  const cardRef = useRef(null)
 
-  // Load comment count in background for ALL posts (so count shows on button)
-  // For own posts this also powers the unread badge
+  // Auto-open comments and scroll into view when navigated from notifications
   useEffect(() => {
-    fetchComments(photo.id).then(data => {
-      setCommentCount(data.length)
-      // Only mark seen for own posts when comments are currently open
-      // Don't auto-mark seen here — let the user open comments to mark seen
-    })
-  }, [photo.id])
+    if (autoOpenComments) {
+      setShowComments(true)
+      setTimeout(() => {
+        cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [autoOpenComments])
 
-  // Seen count: how many comments this user last acknowledged
-  const seenCount = getSeenCounts()[photo.id] !== undefined ? getSeenCounts()[photo.id] : 0
-  // Unread = my post + comments hidden + more comments than last seen
-  const unreadCount = isMyPost && !showComments && commentCount !== null && commentCount > seenCount
-    ? commentCount - seenCount
-    : 0
+  useEffect(() => {
+    fetchComments(photo.id).then(data => setCommentCount(data.length))
+  }, [photo.id])
 
   const likeNames = likes.map(id => {
     const u = USERS.find(u => u.id === id)
@@ -519,10 +646,11 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, onGlobalUnreadChange })
   }).filter(Boolean)
 
   return (
-    <div style={{
+    <div ref={cardRef} id={`post-${photo.id}`} style={{
       background: '#1a1a24', borderRadius: 20,
-      border: '1px solid #2a2a38', overflow: 'hidden',
-      animation: 'fadeUp 0.4s ease both',
+      border: autoOpenComments ? '1px solid #FF6B3566' : '1px solid #2a2a38',
+      overflow: 'hidden', animation: 'fadeUp 0.4s ease both',
+      transition: 'border-color 0.3s',
     }}>
       {urls.length === 1
         ? <img src={urls[0]} alt="" onClick={() => setLightbox(0)}
@@ -565,27 +693,19 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, onGlobalUnreadChange })
             <div style={{ color: '#555', fontSize: 12 }}>{urls.length} photos</div>
           )}
 
-          {/* Comment button with unread badge */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowComments(s => !s)} style={{
-              background: showComments ? '#2a3a4a' : '#2a2a38',
-              border: showComments ? '1px solid #00B4D844' : '1px solid transparent',
-              borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
-              fontSize: 13, color: showComments ? '#00B4D8' : '#888',
-              fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
-            }}>
-              &#x1F4AC;{commentCount !== null && commentCount > 0 ? ` ${commentCount}` : ''}
-            </button>
-            {unreadCount > 0 && (
-              <span style={{
-                position: 'absolute', top: -6, right: -6,
-                background: '#FF6B35', borderRadius: '50%',
-                minWidth: 18, height: 18, fontSize: 10, color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, border: '2px solid #1a1a24', padding: '0 3px',
-              }}>{unreadCount}</span>
-            )}
-          </div>
+          {/* Comment button */}
+          <button onClick={() => {
+            setShowComments(s => !s)
+            if (!showComments && onCommentsViewed) onCommentsViewed(photo.id)
+          }} style={{
+            background: showComments ? '#2a3a4a' : '#2a2a38',
+            border: showComments ? '1px solid #00B4D844' : '1px solid transparent',
+            borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+            fontSize: 13, color: showComments ? '#00B4D8' : '#888',
+            fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
+          }}>
+            &#x1F4AC;{commentCount !== null && commentCount > 0 ? ` ${commentCount}` : ''}
+          </button>
 
           {canEdit && (
             <button onClick={() => onEdit(photo)} style={{
@@ -614,10 +734,7 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, onGlobalUnreadChange })
           <CommentsSection
             post={photo}
             currentUser={currentUser}
-            onCountChange={count => {
-              setCommentCount(count)
-              if (onGlobalUnreadChange) onGlobalUnreadChange()
-            }}
+            onCountChange={count => setCommentCount(count)}
           />
         )}
       </div>
@@ -627,6 +744,7 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, onGlobalUnreadChange })
   )
 }
 
+// -- MAIN APP --
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try { const s = localStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null }
@@ -640,32 +758,24 @@ export default function App() {
   const [feedLoading, setFeedLoading] = useState(false)
   const [error, setError] = useState('')
   const [announcement, setAnnouncement] = useState(null)
-  const [globalUnread, setGlobalUnread] = useState(0)
+  const [notifications, setNotifications] = useState([])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [activePostId, setActivePostId] = useState(null) // post to scroll to and open comments
 
-  async function checkUnread(posts) {
-    if (!currentUser) return
-    const myPosts = posts.filter(p => p.user_id === currentUser.id)
-    if (myPosts.length === 0) { setGlobalUnread(0); return }
-    const seen = getSeenCounts()
-    let total = 0
-    await Promise.all(myPosts.map(async post => {
-      try {
-        const comments = await fetchComments(post.id)
-        const seenCount = seen[post.id] !== undefined ? seen[post.id] : 0
-        if (comments.length > seenCount) total += comments.length - seenCount
-      } catch (e) {}
-    }))
-    setGlobalUnread(total)
-  }
+  const unreadCount = notifications.filter(n => !n.read).length
 
   const loadFeed = useCallback(async () => {
     if (!currentUser) return
     setFeedLoading(true)
     try {
-      const [posts, ann] = await Promise.all([fetchPosts(), fetchAnnouncement()])
+      const [posts, ann, notifs] = await Promise.all([
+        fetchPosts(),
+        fetchAnnouncement(),
+        fetchNotifications(currentUser.id),
+      ])
       setPhotos(posts)
       setAnnouncement(ann)
-      checkUnread(posts)
+      setNotifications(notifs)
     } catch (e) { setError('Could not load feed.') }
     finally { setFeedLoading(false) }
   }, [currentUser])
@@ -681,6 +791,7 @@ export default function App() {
     localStorage.removeItem(SESSION_KEY)
     setCurrentUser(null)
     setPhotos([])
+    setNotifications([])
     setFilter('all')
     setSearchQuery('')
   }
@@ -724,6 +835,36 @@ export default function App() {
     setAnnouncement(null)
   }
 
+  // Navigate from notification to post
+  async function handleNotifNavigate(notif) {
+    // Mark this notification as read
+    await markNotificationRead(notif.id)
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))
+    setShowNotifications(false)
+
+    // Clear filter/search so the post is visible
+    setFilter('all')
+    setSearchQuery('')
+
+    // Set active post — PhotoCard will scroll to it and open comments
+    setActivePostId(notif.post_id)
+    setTimeout(() => setActivePostId(null), 3000) // reset highlight after 3s
+  }
+
+  async function handleMarkAllRead() {
+    await markAllNotificationsRead(currentUser.id)
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  }
+
+  // When user opens comments from a notification, mark it read
+  async function handleCommentsViewed(postId) {
+    const notif = notifications.find(n => n.post_id === postId && !n.read)
+    if (notif) {
+      await markNotificationRead(notif.id)
+      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))
+    }
+  }
+
   const displayed = photos
     .filter(p => filter === 'all' || p.user_id === filter)
     .filter(p => {
@@ -741,6 +882,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f0f14', fontFamily: "'DM Sans', sans-serif", paddingBottom: 80 }}>
+      {/* Header */}
       <div style={{
         background: '#1a1a24', borderBottom: '1px solid #2a2a38', padding: '14px 20px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -752,34 +894,32 @@ export default function App() {
           fontWeight: 800, fontSize: 18, letterSpacing: -0.5,
         }}>FieldSnap HK</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {globalUnread > 0 && (
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
-              <button onClick={() => {
-                const firstUnread = photos.find(p => {
-                  if (p.user_id !== currentUser.id) return false
-                  const seen = getSeenCounts()
-                  return (seen[p.id] !== undefined ? seen[p.id] : 0) < fetchComments.length
-                })
-                document.getElementById('feed-top')?.scrollIntoView({ behavior: 'smooth' })
-              }} style={{
-                background: '#2a1a0f', border: '1px solid #FF6B3544', borderRadius: 8,
-                padding: '6px 10px', cursor: 'pointer', fontSize: 14, color: '#FF6B35',
-                fontFamily: "'DM Sans', sans-serif",
-              }}>&#x1F514;</button>
+          {/* Bell notification button */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowNotifications(true)} style={{
+              background: unreadCount > 0 ? '#2a1a0f' : '#2a2a38',
+              border: unreadCount > 0 ? '1px solid #FF6B3544' : '1px solid transparent',
+              borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+              fontSize: 14, color: unreadCount > 0 ? '#FF6B35' : '#888',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>&#x1F514;</button>
+            {unreadCount > 0 && (
               <span style={{
                 position: 'absolute', top: -6, right: -6,
                 background: '#FF6B35', borderRadius: '50%',
                 minWidth: 18, height: 18, fontSize: 10, color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 700, border: '2px solid #1a1a24', padding: '0 3px',
-              }}>{globalUnread}</span>
-            </div>
-          )}
+              }}>{unreadCount}</span>
+            )}
+          </div>
+
           <button onClick={loadFeed} disabled={feedLoading} style={{
             background: '#2a2a38', border: 'none', borderRadius: 8,
             padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#888',
             fontFamily: "'DM Sans', sans-serif",
           }}>{feedLoading ? '...' : 'Refresh'}</button>
+
           <Avatar user={currentUser} size={34} />
           <div>
             <div style={{ color: '#fff', fontWeight: 600, fontSize: 13, lineHeight: 1 }}>{currentUser.name}</div>
@@ -803,6 +943,7 @@ export default function App() {
         onRemove={handleRemoveAnnouncement} onPost={handlePostAnnouncement}
       />
 
+      {/* Search */}
       <div style={{ padding: '12px 20px 0' }}>
         <div style={{ position: 'relative' }}>
           <input
@@ -827,6 +968,7 @@ export default function App() {
         )}
       </div>
 
+      {/* Filter tabs */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 20px 8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {[{ id: 'all', label: 'All Team' }, ...USERS.map(u => ({ id: u.id, label: u.name.split(' ')[0] }))].map(tab => {
           const u = USERS.find(u => u.id === tab.id)
@@ -843,6 +985,7 @@ export default function App() {
         })}
       </div>
 
+      {/* Feed */}
       <div id="feed-top" style={{ padding: '12px 20px', display: 'grid', gap: 16 }}>
         {feedLoading && photos.length === 0
           ? <div style={{ textAlign: 'center', color: '#444', paddingTop: 60, fontSize: 14 }}>Loading feed...</div>
@@ -852,11 +995,20 @@ export default function App() {
                 {searchQuery ? `No results for "${searchQuery}"` : filter === 'all' ? 'No photos yet. Be the first to share!' : 'No posts from this rep yet.'}
               </div>
             : displayed.map(p => (
-                <PhotoCard key={p.id} photo={p} currentUser={currentUser} onEdit={setEditingPost} onLike={handleLike} onGlobalUnreadChange={() => checkUnread(photos)} />
+                <PhotoCard
+                  key={p.id}
+                  photo={p}
+                  currentUser={currentUser}
+                  onEdit={setEditingPost}
+                  onLike={handleLike}
+                  autoOpenComments={activePostId === p.id}
+                  onCommentsViewed={handleCommentsViewed}
+                />
               ))
         }
       </div>
 
+      {/* FAB */}
       <button onClick={() => setShowUpload(true)} style={{
         position: 'fixed', bottom: 28, right: 24,
         width: 58, height: 58, borderRadius: '50%', border: 'none',
@@ -869,6 +1021,15 @@ export default function App() {
       {showUpload && <PostModal user={currentUser} onClose={() => setShowUpload(false)} onSubmit={handleNewPost} />}
       {editingPost && <PostModal user={currentUser} onClose={() => setEditingPost(null)} onSubmit={handleEditPost} existingPost={editingPost} />}
 
+      {showNotifications && (
+        <NotificationsPanel
+          notifications={notifications}
+          onClose={() => setShowNotifications(false)}
+          onNavigate={handleNotifNavigate}
+          onMarkAllRead={handleMarkAllRead}
+        />
+      )}
+
       <GlobalStyles />
     </div>
   )
@@ -878,10 +1039,11 @@ function GlobalStyles() {
   return (
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-      @keyframes fadeUp   { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:none } }
-      @keyframes shake    { 0%,100%{transform:none} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
-      @keyframes slideUp  { from { transform:translateY(100%) } to { transform:none } }
-      @keyframes fadeIn   { from { opacity:0 } to { opacity:1 } }
+      @keyframes fadeUp       { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:none } }
+      @keyframes shake        { 0%,100%{transform:none} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+      @keyframes slideUp      { from { transform:translateY(100%) } to { transform:none } }
+      @keyframes fadeIn       { from { opacity:0 } to { opacity:1 } }
+      @keyframes slideInRight { from { transform:translateX(100%) } to { transform:none } }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body { background: #0f0f14; }
       ::-webkit-scrollbar { display: none; }

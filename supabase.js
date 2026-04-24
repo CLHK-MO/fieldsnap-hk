@@ -93,7 +93,7 @@ export async function fetchComments(postId) {
   return data || []
 }
 
-export async function addComment({ postId, userId, content }) {
+export async function addComment({ postId, userId, content, postOwnerId, postDistrict }) {
   const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`
   const { data, error } = await supabase
     .from('comments')
@@ -101,6 +101,45 @@ export async function addComment({ postId, userId, content }) {
     .select()
     .single()
   if (error) throw new Error('Comment: ' + error.message)
+
+  // Create notifications for everyone who should be notified:
+  // 1. Post owner (if commenter is not the owner)
+  // 2. Anyone else who has commented on this post (reply notification)
+  try {
+    // Get all existing comments to find who else commented
+    const { data: existingComments } = await supabase
+      .from('comments')
+      .select('user_id')
+      .eq('post_id', postId)
+      .neq('id', id)
+
+    const notifyUserIds = new Set()
+    // Notify post owner
+    if (postOwnerId && postOwnerId !== userId) notifyUserIds.add(postOwnerId)
+    // Notify other commenters
+    if (existingComments) {
+      existingComments.forEach(c => {
+        if (c.user_id !== userId) notifyUserIds.add(c.user_id)
+      })
+    }
+
+    // Upsert notifications for each user to notify
+    for (const notifyUserId of notifyUserIds) {
+      const notifId = `${notifyUserId}_${postId}`
+      await supabase.from('notifications').upsert({
+        id: notifId,
+        user_id: notifyUserId,
+        post_id: postId,
+        post_district: postDistrict || 'Unknown',
+        post_owner_id: postOwnerId || '',
+        last_comment_at: new Date().toISOString(),
+        read: false,
+      })
+    }
+  } catch (e) {
+    console.error('Notification error:', e)
+  }
+
   return data
 }
 
@@ -109,6 +148,26 @@ export async function deleteComment(commentId) {
   if (error) throw error
 }
 
+// Notifications
+export async function fetchNotifications(userId) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('last_comment_at', { ascending: false })
+  if (error) throw new Error('Notifications: ' + error.message)
+  return data || []
+}
+
+export async function markNotificationRead(notifId) {
+  await supabase.from('notifications').update({ read: true }).eq('id', notifId)
+}
+
+export async function markAllNotificationsRead(userId) {
+  await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+}
+
+// Announcements
 export async function fetchAnnouncement() {
   const { data, error } = await supabase
     .from('announcements')
