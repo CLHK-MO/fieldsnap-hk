@@ -662,7 +662,20 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
 // -- VIDEO PLAYER --
 function VideoPlayer({ url }) {
   const [muted, setMuted] = useState(true)
+  const [playing, setPlaying] = useState(false)
   const videoRef = useRef(null)
+
+  function togglePlay(e) {
+    e.stopPropagation()
+    if (!videoRef.current) return
+    if (videoRef.current.paused) {
+      videoRef.current.play()
+      setPlaying(true)
+    } else {
+      videoRef.current.pause()
+      setPlaying(false)
+    }
+  }
 
   return (
     <div style={{ position: 'relative', width: '100%', background: '#000', aspectRatio: '16/9' }}>
@@ -670,41 +683,34 @@ function VideoPlayer({ url }) {
         ref={videoRef}
         src={url}
         muted={muted}
-        controls={false}
         playsInline
         preload="metadata"
-        onClick={e => {
-          e.stopPropagation()
-          if (videoRef.current.paused) videoRef.current.play()
-          else videoRef.current.pause()
-        }}
+        onEnded={() => setPlaying(false)}
+        onClick={togglePlay}
         style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', cursor: 'pointer' }}
       />
-      {/* Play overlay shown when paused */}
-      <div
-        onClick={e => { e.stopPropagation(); videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause() }}
-        style={{
+      {!playing && (
+        <div onClick={togglePlay} style={{
           position: 'absolute', inset: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          pointerEvents: 'none',
-        }}
-      >
-        <div id={`play-${url}`} style={{
-          background: 'rgba(0,0,0,0.5)', borderRadius: '50%',
-          width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, color: '#fff',
-        }}>&#x25B6;</div>
-      </div>
-      {/* Mute toggle */}
+          cursor: 'pointer',
+        }}>
+          <div style={{
+            background: 'rgba(0,0,0,0.6)', borderRadius: '50%',
+            width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, color: '#fff', paddingLeft: 4,
+          }}>&#x25B6;</div>
+        </div>
+      )}
       <button
         onClick={e => { e.stopPropagation(); setMuted(m => !m) }}
         style={{
           position: 'absolute', bottom: 10, right: 10,
-          background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff',
-          borderRadius: 8, padding: '4px 8px', cursor: 'pointer', fontSize: 13,
+          background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff',
+          borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 12,
           fontFamily: "'DM Sans', sans-serif",
         }}
-      >{muted ? '&#x1F507; Unmute' : '&#x1F50A; Mute'}</button>
+      >{muted ? 'Unmute' : 'Mute'}</button>
     </div>
   )
 }
