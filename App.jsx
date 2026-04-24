@@ -91,10 +91,15 @@ function Lightbox({ urls, startIndex, onClose }) {
           fontWeight: 700, boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
         }}>&lt;</button>
       )}
-      <img src={urls[current]} alt="" onClick={e => e.stopPropagation()} style={{
-        maxWidth: '92vw', maxHeight: '88vh', objectFit: 'contain',
-        borderRadius: 12, boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
-      }} />
+      {(urls[current].type === 'video')
+        ? <div onClick={e => e.stopPropagation()} style={{ maxWidth: '92vw', maxHeight: '88vh' }}>
+            <VideoPlayer url={urls[current].url || urls[current]} />
+          </div>
+        : <img src={urls[current].url || urls[current]} alt="" onClick={e => e.stopPropagation()} style={{
+            maxWidth: '92vw', maxHeight: '88vh', objectFit: 'contain',
+            borderRadius: 12, boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+          }} />
+      }
       {current < urls.length - 1 && (
         <button onClick={e => { e.stopPropagation(); setCurrent(c => c + 1) }} style={{
           position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
@@ -469,7 +474,12 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
   const [note, setNote] = useState(isEditing ? (existingPost.note || '') : '')
   const [images, setImages] = useState(
     isEditing
-      ? (existingPost.image_urls || []).map((url, i) => ({ id: `existing_${i}`, dataUrl: url, isExisting: true }))
+      ? (existingPost.image_urls || []).map((item, i) => ({
+          id: `existing_${i}`,
+          dataUrl: item.url || item,
+          isExisting: true,
+          isVideo: item.type === 'video',
+        }))
       : []
   )
   const [dragging, setDragging] = useState(false)
@@ -481,9 +491,34 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
 
   function readFiles(files) {
     Array.from(files).forEach(file => {
-      if (!file.type.startsWith('image/')) return
+      const isVideo = file.type.startsWith('video/')
+      const isImage = file.type.startsWith('image/')
+      if (!isImage && !isVideo) return
+
+      if (isVideo) {
+        // Check duration before reading
+        const videoEl = document.createElement('video')
+        const url = URL.createObjectURL(file)
+        videoEl.src = url
+        videoEl.onloadedmetadata = () => {
+          URL.revokeObjectURL(url)
+          if (videoEl.duration > 30) {
+            alert('Video is too long. Please keep videos under 30 seconds.')
+            return
+          }
+          if (file.size > 45 * 1024 * 1024) {
+            alert('Video file is too large (max 45MB). Please use a shorter or compressed video.')
+            return
+          }
+          const reader = new FileReader()
+          reader.onload = e => setImages(prev => [...prev, { id: Date.now() + Math.random(), dataUrl: e.target.result, isExisting: false, isVideo: true }])
+          reader.readAsDataURL(file)
+        }
+        return
+      }
+
       const reader = new FileReader()
-      reader.onload = e => setImages(prev => [...prev, { id: Date.now() + Math.random(), dataUrl: e.target.result, isExisting: false }])
+      reader.onload = e => setImages(prev => [...prev, { id: Date.now() + Math.random(), dataUrl: e.target.result, isExisting: false, isVideo: false }])
       reader.readAsDataURL(file)
     })
   }
@@ -538,12 +573,17 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
             ? <div style={{ textAlign: 'center', color: '#444' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>&#x1F4F8;</div>
                 <div style={{ fontSize: 14 }}>Tap to choose photos</div>
-                <div style={{ fontSize: 12, marginTop: 4, color: '#333' }}>Multiple photos supported</div>
+                <div style={{ fontSize: 12, marginTop: 4, color: '#333' }}>Photos and videos (max 30s) supported</div>
               </div>
             : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%' }}>
                 {images.map(img => (
-                  <div key={img.id} style={{ position: 'relative', width: 78, height: 78, borderRadius: 10, overflow: 'hidden', flexShrink: 0 }}>
-                    <img src={img.dataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div key={img.id} style={{ position: 'relative', width: 78, height: 78, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#0f0f14' }}>
+                    {img.isVideo
+                      ? <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#131318' }}>
+                          <span style={{ fontSize: 28 }}>&#x1F3AC;</span>
+                        </div>
+                      : <img src={img.dataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    }
                     {!submitting && (
                       <button onClick={e => { e.stopPropagation(); removeImage(img.id) }} style={{
                         position: 'absolute', top: 3, right: 3,
@@ -564,11 +604,11 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
               </div>
           }
         </div>
-        <input id="fileInput" type="file" accept="image/*" multiple style={{ display: 'none' }}
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
           onChange={e => readFiles(e.target.files)} />
         {images.length > 0 && !submitting && (
           <p style={{ color: '#555', fontSize: 12, marginBottom: 16 }}>
-            {images.length} photo{images.length > 1 ? 's' : ''} - tap X to remove - tap above to add more
+            {images.length} file{images.length > 1 ? 's' : ''} - tap X to remove - tap above to add more
           </p>
         )}
         <label style={labelStyle}>Date &amp; Time</label>
@@ -604,6 +644,57 @@ function PostModal({ user, onClose, onSubmit, existingPost }) {
           }
         </button>
       </div>
+    </div>
+  )
+}
+
+
+// -- VIDEO PLAYER --
+function VideoPlayer({ url }) {
+  const [muted, setMuted] = useState(true)
+  const videoRef = useRef(null)
+
+  return (
+    <div style={{ position: 'relative', width: '100%', background: '#000', aspectRatio: '16/9' }}>
+      <video
+        ref={videoRef}
+        src={url}
+        muted={muted}
+        controls={false}
+        playsInline
+        preload="metadata"
+        onClick={e => {
+          e.stopPropagation()
+          if (videoRef.current.paused) videoRef.current.play()
+          else videoRef.current.pause()
+        }}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', cursor: 'pointer' }}
+      />
+      {/* Play overlay shown when paused */}
+      <div
+        onClick={e => { e.stopPropagation(); videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause() }}
+        style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}
+      >
+        <div id={`play-${url}`} style={{
+          background: 'rgba(0,0,0,0.5)', borderRadius: '50%',
+          width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, color: '#fff',
+        }}>&#x25B6;</div>
+      </div>
+      {/* Mute toggle */}
+      <button
+        onClick={e => { e.stopPropagation(); setMuted(m => !m) }}
+        style={{
+          position: 'absolute', bottom: 10, right: 10,
+          background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff',
+          borderRadius: 8, padding: '4px 8px', cursor: 'pointer', fontSize: 13,
+          fontFamily: "'DM Sans', sans-serif",
+        }}
+      >{muted ? '&#x1F507; Unmute' : '&#x1F50A; Mute'}</button>
     </div>
   )
 }
@@ -652,23 +743,38 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCom
       overflow: 'hidden', animation: 'fadeUp 0.4s ease both',
       transition: 'border-color 0.3s',
     }}>
+      {/* Media display - handle images and videos */}
       {urls.length === 1
-        ? <img src={urls[0]} alt="" onClick={() => setLightbox(0)}
-            style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
+        ? urls[0].type === 'video'
+          ? <VideoPlayer url={urls[0].url} />
+          : <img src={urls[0].url || urls[0]} alt="" onClick={() => setLightbox(0)}
+              style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
         : <div style={{ display: 'grid', gridTemplateColumns: urls.length === 2 ? '1fr 1fr' : '1fr 1fr 1fr', gap: 2 }}>
-            {urls.slice(0, 6).map((url, i) => (
-              <div key={i} style={{ position: 'relative' }}>
-                <img src={url} alt="" onClick={() => setLightbox(i)}
-                  style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
-                {i === 5 && urls.length > 6 && (
-                  <div onClick={() => setLightbox(5)} style={{
-                    position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontWeight: 700, fontSize: 20, cursor: 'pointer',
-                  }}>+{urls.length - 6}</div>
-                )}
-              </div>
-            ))}
+            {urls.slice(0, 6).map((item, i) => {
+              const isVideo = item.type === 'video'
+              const src = item.url || item
+              return (
+                <div key={i} style={{ position: 'relative' }}>
+                  {isVideo
+                    ? <div onClick={() => setLightbox(i)} style={{
+                        aspectRatio: '1/1', background: '#131318', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <span style={{ fontSize: 32 }}>&#x1F3AC;</span>
+                      </div>
+                    : <img src={src} alt="" onClick={() => setLightbox(i)}
+                        style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
+                  }
+                  {i === 5 && urls.length > 6 && (
+                    <div onClick={() => setLightbox(5)} style={{
+                      position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontWeight: 700, fontSize: 20, cursor: 'pointer',
+                    }}>+{urls.length - 6}</div>
+                  )}
+                </div>
+              )
+            })}
           </div>
       }
 
@@ -690,7 +796,7 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, autoOpenComments, onCom
             <div style={{ color: '#555', fontSize: 11 }}>{dateStr} - {timeStr}</div>
           </div>
           {urls.length > 1 && (
-            <div style={{ color: '#555', fontSize: 12 }}>{urls.length} photos</div>
+            <div style={{ color: '#555', fontSize: 12 }}>{urls.length} files</div>
           )}
 
           {/* Comment button */}
@@ -799,7 +905,7 @@ export default function App() {
   async function handleNewPost({ images, district, note, dateTime }) {
     const postId = `${Date.now()}_${Math.random().toString(36).slice(2)}`
     const newImages = images.filter(img => !img.isExisting)
-    const imageUrls = await uploadImages(newImages.map(img => ({ dataUrl: img.dataUrl })), postId)
+    const imageUrls = await uploadImages(newImages.map(img => ({ dataUrl: img.dataUrl, isVideo: img.isVideo })), postId)
     const post = await createPost({ userId: currentUser.id, imageUrls, district, note, displayTime: dateTime })
     setPhotos(prev => [post, ...prev])
     setShowUpload(false)
@@ -807,11 +913,15 @@ export default function App() {
 
   async function handleEditPost({ images, district, note, dateTime }) {
     const post = editingPost
-    const existingUrls = images.filter(img => img.isExisting).map(img => img.dataUrl)
+    const existingUrls = images.filter(img => img.isExisting).map(img => {
+      // Existing items may already be {url, type} objects or plain strings
+      if (typeof img.dataUrl === 'object') return img.dataUrl
+      return { url: img.dataUrl, type: img.isVideo ? 'video' : 'image' }
+    })
     const newImages = images.filter(img => !img.isExisting)
     let newUrls = []
     if (newImages.length > 0) {
-      newUrls = await uploadImages(newImages.map(img => ({ dataUrl: img.dataUrl })), `${post.id}_edit_${Date.now()}`)
+      newUrls = await uploadImages(newImages.map(img => ({ dataUrl: img.dataUrl, isVideo: img.isVideo })), `${post.id}_edit_${Date.now()}`)
     }
     const updated = await updatePost({ id: post.id, imageUrls: [...existingUrls, ...newUrls], district, note, displayTime: dateTime })
     setPhotos(prev => prev.map(p => p.id === updated.id ? updated : p))
@@ -846,7 +956,7 @@ export default function App() {
     setFilter('all')
     setSearchQuery('')
 
-    // Set active post — PhotoCard will scroll to it and open comments
+    // Set active post -- PhotoCard will scroll to it and open comments
     setActivePostId(notif.post_id)
     setTimeout(() => setActivePostId(null), 3000) // reset highlight after 3s
   }
