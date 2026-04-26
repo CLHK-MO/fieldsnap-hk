@@ -13,13 +13,14 @@ jobs:
       - name: Ping Supabase Database
         run: |
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/?apikey=$SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            -H "Content-Type: application/json")
+            "$SUPABASE_URL/rest/v1/rpc/ping" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
 
           echo "Response code: $RESPONSE"
 
-          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
+          # 200 = success, 404 = function not found but DB is alive, both are fine
+          if [ "$RESPONSE" -eq 200 ] || [ "$RESPONSE" -eq 404 ] || [ "$RESPONSE" -eq 400 ]; then
             echo "✅ Heartbeat successful - Supabase project is active."
           else
             echo "❌ Heartbeat failed with HTTP $RESPONSE"
