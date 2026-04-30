@@ -16,6 +16,19 @@ const USERS = [
 
 const SESSION_KEY = 'fieldsnap_user'
 
+const FEED_CACHE_KEY = 'fieldsnap_feed_cache'
+
+function saveFeedCache(posts) {
+  try { localStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ posts, ts: Date.now() })) } catch(e) {}
+}
+function loadFeedCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(FEED_CACHE_KEY) || 'null')
+    if (c && c.posts) return c.posts
+  } catch(e) {}
+  return null
+}
+
 function toLocalDateTimeString(date) {
   const pad = n => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
@@ -767,7 +780,11 @@ function PhotoCard({ photo, currentUser, onEdit, onLike, onDelete, autoOpenComme
   }, [autoOpenComments])
 
   useEffect(() => {
-    fetchComments(photo.id).then(data => setCommentCount(data.length))
+    // Delay comment count fetch so it doesn't block initial render
+    const timer = setTimeout(() => {
+      fetchComments(photo.id).then(data => setCommentCount(data.length))
+    }, 800)
+    return () => clearTimeout(timer)
   }, [photo.id])
 
   const likeNames = likes.map(id => {
@@ -902,7 +919,7 @@ export default function App() {
     try { const s = localStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null }
     catch { return null }
   })
-  const [photos, setPhotos] = useState([])
+  const [photos, setPhotos] = useState(() => loadFeedCache() || [])
   const [showUpload, setShowUpload] = useState(false)
   const [editingPost, setEditingPost] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -926,6 +943,7 @@ export default function App() {
         fetchNotifications(currentUser.id),
       ])
       setPhotos(posts)
+      saveFeedCache(posts)
       setAnnouncement(ann)
       setNotifications(notifs)
     } catch (e) { setError('Could not load feed.') }
